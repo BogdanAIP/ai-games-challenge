@@ -1,27 +1,13 @@
 {
-  "season": "Season 0 (Demo)",
+  "season": "Season 0 · Speedgate",
   "updated_at": "2025-09-17T12:00:00Z",
   "entries": [
     {
       "id": "speedgate",
       "title": "Speedgate (AKQA, 2019)",
-      "youtube": { "playlist": "https://www.youtube.com/playlist?list=PL_SPEEDGATE_DEMO" },
+      "youtube": { "playlist": "https://player.vimeo.com/video/329197612" },
       "metrics": { "views30d": 12000, "likes30d": 600, "er": 0.05 },
       "score": 1.000
-    },
-    {
-      "id": "volley-chess",
-      "title": "Volley-Chess",
-      "youtube": { "playlist": "https://www.youtube.com/playlist?list=PL_VOLLEY_CHESS" },
-      "metrics": { "views30d": 4800, "likes30d": 200, "er": 0.042 },
-      "score": 0.675
-    },
-    {
-      "id": "punk-rugby",
-      "title": "Punk Rugby",
-      "youtube": { "playlist": "https://www.youtube.com/playlist?list=PL_PUNK_RUGBY" },
-      "metrics": { "views30d": 2600, "likes30d": 95, "er": 0.036 },
-      "score": 0.512
     }
   ]
 }
