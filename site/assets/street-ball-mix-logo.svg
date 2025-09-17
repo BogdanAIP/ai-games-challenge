@@ -1,16 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="24" fill="#0e1117"/>
-  <!-- basketball circle -->
-  <circle cx="256" cy="240" r="150" fill="#FF6B00" />
-  <!-- seams -->
-  <path d="M106 240h300" stroke="#2a3342" stroke-width="10"/>
-  <path d="M256 90v300" stroke="#2a3342" stroke-width="10"/>
-  <path d="M146 140c40 40 40 160 0 200" stroke="#2a3342" stroke-width="10" fill="none"/>
-  <path d="M366 140c-40 40-40 160 0 200" stroke="#2a3342" stroke-width="10" fill="none"/>
-  <!-- mix mark -->
-  <g transform="translate(256 240) rotate(-18)">
-    <rect x="-108" y="112" width="216" height="28" rx="14" fill="#7A00FF" opacity="0.9"/>
-    <rect x="-108" y="112" width="108" height="28" rx="14" fill="#00E3FF" opacity="0.9"/>
+  <!-- shadow -->
+  <ellipse id="shadow" cx="256" cy="380" rx="110" ry="18" fill="#000" opacity="0.35">
+    <animate attributeName="rx" values="110;95;110" dur="1.2s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.35;0.25;0.35" dur="1.2s" repeatCount="indefinite"/>
+  </ellipse>
+  <!-- ball -->
+  <g id="ball">
+    <circle cx="256" cy="240" r="150" fill="#FF6B00"/>
+    <path d="M106 240h300" stroke="#2a3342" stroke-width="10"/>
+    <path d="M256 90v300" stroke="#2a3342" stroke-width="10"/>
+    <path d="M146 140c40 40 40 160 0 200" stroke="#2a3342" stroke-width="10" fill="none"/>
+    <path d="M366 140c-40 40-40 160 0 200" stroke="#2a3342" stroke-width="10" fill="none"/>
+    <!-- highlight sweep -->
+    <ellipse cx="200" cy="200" rx="28" ry="60" fill="#fff" opacity="0.12">
+      <animate attributeName="cx" values="200;320;200" dur="2.2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.12;0.03;0.12" dur="2.2s" repeatCount="indefinite"/>
+    </ellipse>
   </g>
-  <text x="256" y="462" font-family="Inter, system-ui, Segoe UI, Roboto, Arial" font-size="40" text-anchor="middle" fill="#e6eaf2" letter-spacing="1.5">STREET BALL MIX</text>
+  <!-- bounce -->
+  <animateTransform xlink:href="#ball" attributeName="transform" type="translate"
+    values="0,0; 0,-18; 0,0" keyTimes="0;0.5;1" dur="1.2s" repeatCount="indefinite"/>
+  <text x="256" y="468" font-family="Inter, system-ui, Segoe UI, Roboto, Arial"
+        font-size="40" text-anchor="middle" fill="#e6eaf2" letter-spacing="1.5">STREET BALL MIX</text>
 </svg>
