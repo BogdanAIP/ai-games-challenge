@@ -1,4 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="512" height="512" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="24" fill="#0e1117"/>
   <!-- shadow -->
   <ellipse id="shadow" cx="256" cy="380" rx="110" ry="18" fill="#000" opacity="0.35">
@@ -18,9 +20,13 @@
       <animate attributeName="opacity" values="0.12;0.03;0.12" dur="2.2s" repeatCount="indefinite"/>
     </ellipse>
   </g>
-  <!-- bounce -->
-  <animateTransform xlink:href="#ball" attributeName="transform" type="translate"
-    values="0,0; 0,-18; 0,0" keyTimes="0;0.5;1" dur="1.2s" repeatCount="indefinite"/>
+
+  <!-- bounce animation on the ball group -->
+  <animateTransform href="#ball" xlink:href="#ball"
+    attributeName="transform" type="translate"
+    values="0,0; 0,-18; 0,0" keyTimes="0;0.5;1"
+    dur="1.2s" repeatCount="indefinite"/>
+
   <text x="256" y="468" font-family="Inter, system-ui, Segoe UI, Roboto, Arial"
         font-size="40" text-anchor="middle" fill="#e6eaf2" letter-spacing="1.5">STREET BALL MIX</text>
 </svg>
