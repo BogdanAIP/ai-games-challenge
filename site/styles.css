@@ -58,3 +58,25 @@
   /* если пользователь просит «меньше анимации», слегка приглушим */
   .logo-box .logo-object{filter:brightness(.95)}
 }
+
+/* Two-column layout for "How it works" + Leaderboard */
+.split{display:grid;grid-template-columns:1.2fr .8fr;gap:24px;align-items:start}
+.col h2,.col h3{margin:0 0 10px}
+.howcol ol{margin:8px 0 0 18px}
+.howcol li{margin:6px 0}
+
+/* Mini leaderboard */
+.board-title{font-size:18px;color:var(--muted)}
+.mini-board{background:#12161f;border:1px solid #2a3342;border-radius:12px;padding:10px}
+.mini-board table{width:100%;border-collapse:collapse}
+.mini-board th,.mini-board td{padding:8px 10px;border-bottom:1px solid #1c2533;font-size:14px}
+.mini-board th{color:var(--muted);text-align:left}
+.mini-board tr:last-child td{border-bottom:none}
+.mini-board a{color:var(--accent);text-decoration:none}
+.mini-board a:hover{text-decoration:underline}
+
+/* Responsive: stack on small screens */
+@media (max-width: 880px){
+  .split{grid-template-columns:1fr}
+  .boardcol{order:2}
+}

@@ -1,5 +1,5 @@
 {
-  "season": "Season 0 · Speedgate",
+  "season": "Season Demo",
   "updated_at": "2025-09-17T12:00:00Z",
   "entries": [
     {
@@ -8,6 +8,20 @@
       "youtube": { "playlist": "https://player.vimeo.com/video/329197612" },
       "metrics": { "views30d": 12000, "likes30d": 600, "er": 0.05 },
       "score": 1.000
+    },
+    {
+      "id": "vortex",
+      "title": "Vortex",
+      "youtube": { "playlist": "#" },
+      "metrics": { "views30d": 4800, "likes30d": 200, "er": 0.042 },
+      "score": 0.675
+    },
+    {
+      "id": "street-ball-mix",
+      "title": "Street Ball Mix",
+      "youtube": { "playlist": "#" },
+      "metrics": { "views30d": 2600, "likes30d": 95, "er": 0.036 },
+      "score": 0.512
     }
   ]
 }
