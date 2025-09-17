@@ -1,0 +1,9 @@
+{
+  "id": "speedgate",
+  "slug": "speedgate",
+  "title": "Speedgate (AKQA, 2019)",
+  "author": { "name": "AKQA" },
+  "youtube": { "channel_id": "UC_DEMO", "season_playlist_id": "PL_SPEEDGATE_DEMO", "verified": true, "registered_at": "2019-04-01T00:00:00Z" },
+  "rules_md": "games/speedgate/rules.md",
+  "status": "active"
+}
