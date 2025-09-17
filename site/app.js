@@ -1,5 +1,5 @@
 async function loadBoard(){
-  const res = await fetch('../public/leaderboard.json', {cache:'no-store'});
+  const res = await fetch('public/leaderboard.json', {cache:'no-store'});
   const data = await res.json();
   const rows = data.entries
     .sort((a,b)=>b.score - a.score)
@@ -21,7 +21,7 @@ loadBoard().catch(console.error);
 
 async function loadMiniBoard(){
   try{
-    const res = await fetch('../public/leaderboard.json', {cache:'no-store'});
+    const res = await fetch('public/leaderboard.json', {cache:'no-store'});
     if(!res.ok) throw new Error('no leaderboard.json');
     const data = await res.json();
     const entries = (data.entries||[]).slice().sort((a,b)=>b.score-a.score).slice(0,5);
@@ -41,3 +41,4 @@ async function loadMiniBoard(){
   }
 }
 loadMiniBoard();
+
