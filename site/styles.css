@@ -31,3 +31,17 @@
 .game-card p{margin:0 0 8px;color:var(--muted)}
 .game-card a{color:var(--accent);text-decoration:none}
 .game-card a:hover{text-decoration:underline}
+
+/* Rules page */
+.rules-page{max-width:980px;margin:0 auto;padding:0 20px 40px}
+.rules-card{background:#12161f;border-radius:16px;padding:20px;margin:24px 0;box-shadow:0 4px 8px rgba(0,0,0,.35)}
+.rules-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:8px}
+.logo-box{width:140px;height:140px;position:relative}
+.logo-box img{width:100%;height:100%;object-fit:contain;border-radius:12px;border:1px solid #2a3342;background:#0e1117}
+.logo-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px dashed #2a3342;color:#9aa4b2;font-size:12px}
+
+/* Small screens */
+@media (max-width:720px){
+  .rules-head{flex-direction:column;align-items:flex-start}
+  .logo-box{width:120px;height:120px}
+}
