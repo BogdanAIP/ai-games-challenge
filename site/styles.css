@@ -80,3 +80,5 @@
   .split{grid-template-columns:1fr}
   .boardcol{order:2}
 }
+
+.season-hdr{margin:8px 0 12px;font-size:18px;color:var(--muted);font-weight:600}
