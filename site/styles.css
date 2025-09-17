@@ -45,3 +45,6 @@
   .rules-head{flex-direction:column;align-items:flex-start}
   .logo-box{width:120px;height:120px}
 }
+
+/* ensure logos look crisp on dark */
+.logo-box img{background:#0e1117;border:1px solid #2a3342;border-radius:12px}
