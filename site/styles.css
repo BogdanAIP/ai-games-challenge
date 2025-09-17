@@ -20,3 +20,14 @@
   .video-embed iframe{height:220px}
 }
 .muted{color:var(--muted);font-size:14px;margin-top:8px}
+
+.subtitle h2{margin:0 0 8px;font-size:20px}
+.subtitle ol{margin:8px 0 8px 18px}
+.subtitle ol li{margin:4px 0}
+.subtitle p{margin:6px 0}
+
+.game-card{background:#12161f;border-radius:16px;padding:20px;margin:20px 0;box-shadow:0 4px 8px rgba(0,0,0,.4)}
+.game-card h3{margin:0 0 6px}
+.game-card p{margin:0 0 8px;color:var(--muted)}
+.game-card a{color:var(--accent);text-decoration:none}
+.game-card a:hover{text-decoration:underline}
