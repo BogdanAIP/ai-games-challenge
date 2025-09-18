@@ -145,3 +145,14 @@
 @media (max-width: 880px){
   .yt-wrap{padding-bottom:56.25%;max-width:100%} /* на мобильных 16:9 */
 }
+
+/* Hero player width & spacing */
+.yt-wrap{max-width:800px;margin:16px auto 12px}
+
+/* CTA buttons under hero */
+.hero-cta{display:flex;gap:10px;justify-content:center;margin:4px 0 18px}
+.btn{display:inline-block;padding:10px 14px;border-radius:10px;border:1px solid #2a3342;text-decoration:none}
+.btn-primary{background:#0ea5e9;color:#0b1220;border-color:#0ea5e9}
+.btn:hover{filter:brightness(1.08)}
+.board-meta{margin:6px 0 0;color:var(--muted);font-size:12px}
+.mini-board .top1 td{background:#141a24}
