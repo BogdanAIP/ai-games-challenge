@@ -7,7 +7,7 @@
 .btn{padding:10px 16px;border:1px solid #263043;border-radius:12px;color:var(--fg);text-decoration:none}
 .btn:hover{border-color:var(--accent)}
 .hint{color:var(--muted);font-size:14px}
-.section{max-width:960px;margin:0 auto;padding:24px 20px}
+.section{max-width:800px;margin:0 auto;padding:24px 20px}
 #board table{width:100%;border-collapse:collapse;margin-top:8px}
 #board th,#board td{border-bottom:1px solid #2a3342;padding:10px;text-align:left}
 #board th{color:var(--muted);font-weight:600}
@@ -83,5 +83,10 @@
 
 .season-hdr{margin:8px 0 12px;font-size:18px;color:var(--muted);font-weight:600}
 
-.yt-wrap{position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;box-shadow:0 6px 16px rgba(0,0,0,.35);max-width:960px;margin:0 auto}
+.yt-wrap{position:relative;padding-bottom:42.857%;height:0;overflow:hidden;border-radius:12px;box-shadow:0 6px 16px rgba(0,0,0,.35);max-width:800px;margin:0 auto}
 .yt-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:0}
+
+/* Make hero video slimmer on desktop, normal on mobile */
+@media (max-width: 880px){
+  .yt-wrap{padding-bottom:56.25%;max-width:100%}
+}
