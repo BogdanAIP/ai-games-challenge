@@ -161,3 +161,18 @@
 .prose p, .prose li{line-height:1.6}
 .prose pre{background:#0f1420;border:1px solid #263044;border-radius:8px;padding:10px;overflow:auto}
 .prose code{background:#0f1420;border:1px solid #263044;border-radius:6px;padding:0 4px}
+
+.topnav{
+  display:flex; gap:14px; justify-content:center; align-items:center;
+  margin:8px auto 20px; flex-wrap:wrap;
+}
+.topnav a{
+  color:#cdd6e5; text-decoration:none; padding:8px 10px; border:1px solid #2a3342;
+  border-radius:10px;
+}
+.topnav a:hover{ filter:brightness(1.08) }
+
+.prose h2{margin:14px 0 8px;font-size:22px}
+.prose p,.prose li{line-height:1.6}
+.prose pre{background:#0f1420;border:1px solid #263044;border-radius:8px;padding:10px;overflow:auto}
+.prose code{background:#0f1420;border:1px solid #263044;border-radius:6px;padding:0 4px}
