@@ -1,0 +1,33 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AI Games Challenge — Scoring</title>
+<link rel="stylesheet" href="./styles.css"/>
+</head><body>
+<header class="hero">
+  <h1 class="notranslate" translate="no">AI Games Challenge</h1>
+  <p class="subtitle">Transparent seasonal scoring — playlist only, updated daily.</p>
+  <div class="cta-row"><a class="btn" href="./index.html">← Back</a></div>
+</header>
+<main class="section prose">
+  <h2>Season model</h2>
+  <ul>
+    <li>Only videos inside a participant’s <strong>public YouTube season playlist</strong> are counted.</li>
+    <li>Only videos <strong>published after registration</strong> (season start) are counted.</li>
+    <li>Leaderboard updates daily from public YouTube data.</li>
+  </ul>
+  <h2>Metrics (last 30 days)</h2>
+  <ul>
+    <li><code>V30</code> — total views across videos in the season playlist.</li>
+    <li><code>L30</code> — total likes across those videos.</li>
+    <li><code>ER</code> — engagement rate = <code>L30 / max(V30, 1)</code>, capped at <strong>5%</strong>.</li>
+  </ul>
+  <h2>Normalization</h2>
+  <p>Robust scaling across participants to reduce outliers:</p>
+  <pre>zV = (V30 − median(V30)) / IQR(V30)
+zL = (L30 − median(L30)) / IQR(L30)</pre>
+  <h2>Score</h2>
+  <pre>score = 0.5 · zV + 0.3 · zL + 0.2 · norm(ER)</pre>
+  <p class="muted">Note: scoring may be tuned during pilot seasons to improve fairness.</p>
+</main>
+<footer class="footer"><p>© AI Games Challenge</p></footer>
+</body></html>

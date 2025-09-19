@@ -156,3 +156,8 @@
 .btn:hover{filter:brightness(1.08)}
 .board-meta{margin:6px 0 0;color:var(--muted);font-size:12px}
 .mini-board .top1 td{background:#141a24}
+
+.prose h2{margin:14px 0 8px;font-size:22px}
+.prose p, .prose li{line-height:1.6}
+.prose pre{background:#0f1420;border:1px solid #263044;border-radius:8px;padding:10px;overflow:auto}
+.prose code{background:#0f1420;border:1px solid #263044;border-radius:6px;padding:0 4px}
