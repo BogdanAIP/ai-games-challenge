@@ -46,3 +46,39 @@ async function loadMiniBoard(){
 }
 loadMiniBoard();
 
+async function loadFullBoard(){
+  try{
+    const res = await fetch('./public/leaderboard.json', {cache:'no-store'});
+    if(!res.ok) throw new Error('no leaderboard.json');
+    const data = await res.json();
+    const updated = data.updated_at ? `<div class="board-meta">Updated: ${data.updated_at}</div>` : '';
+    const entries = (data.entries||[]).slice().sort((a,b)=>b.score-a.score);
+    if(!entries.length){
+      document.getElementById('full-board').innerHTML = '<p class="muted">No entries yet.</p>'+updated;
+      return;
+    }
+    const rows = entries.map((e,i)=>`
+      <tr class="${i===0?'top1':''}">
+        <td>${i+1}</td>
+        <td>${e.title}</td>
+        <td>${e.youtube?.playlist ? `<a href="${e.youtube.playlist}" target="_blank" rel="noopener">Playlist</a>` : '—'}</td>
+        <td style="text-align:right">${(e.metrics?.views30d ?? 0)}</td>
+        <td style="text-align:right">${(e.metrics?.likes30d ?? 0)}</td>
+        <td style="text-align:right">${(e.metrics?.er ?? 0).toFixed(3)}</td>
+        <td style="text-align:right"><strong>${(e.score ?? 0).toFixed(3)}</strong></td>
+      </tr>`).join('');
+    document.getElementById('full-board').innerHTML =
+      `<table>
+         <thead><tr>
+           <th>#</th><th>Game</th><th>Link</th>
+           <th style="text-align:right">V30</th>
+           <th style="text-align:right">L30</th>
+           <th style="text-align:right">ER</th>
+           <th style="text-align:right">Score</th>
+         </tr></thead>
+         <tbody>${rows}</tbody>
+       </table>` + updated;
+  }catch(e){
+    document.getElementById('full-board').innerHTML = '<p class="muted">Leaderboard coming soon.</p>';
+  }
+}
