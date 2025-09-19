@@ -22,11 +22,9 @@
   <pre>zV = (V30 − median(V30)) / IQR(V30)
 zL = (L30 − median(L30)) / IQR(L30)</pre>
   <p><strong>Score:</strong> <code>0.5·zV + 0.3·zL + 0.2·norm(ER)</code></p>
-  <p class="muted">We may tune weights and caps during pilot seasons.</p>
+  <p class="muted">Weights and caps may be tuned during pilot seasons.</p>
 </main>
 <footer class="footer"><p>© AI Games Challenge</p></footer>
 <script src="./app.js" defer></script>
-<script>
-document.addEventListener('DOMContentLoaded', () => { if (window.loadFullBoard) loadFullBoard(); });
-</script>
+<script>document.addEventListener('DOMContentLoaded',()=>{ if(window.loadFullBoard) loadFullBoard(); });</script>
 </body></html>
