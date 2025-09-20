@@ -1,0 +1,34 @@
+name: "Register team for AI Games Challenge"
+description: "Create your Season playlist first, then submit details."
+title: "Registration: <Team Name>"
+labels: ["registration"]
+body:
+  - type: input
+    id: team
+    attributes:
+      label: Team name
+      placeholder: Vortex Crew
+    validations: { required: true }
+  - type: input
+    id: country
+    attributes:
+      label: Country/Region
+      placeholder: NL
+    validations: { required: true }
+  - type: input
+    id: channel
+    attributes:
+      label: YouTube channel URL
+      placeholder: https://youtube.com/@yourteam
+    validations: { required: true }
+  - type: input
+    id: playlist
+    attributes:
+      label: Season playlist URL
+      placeholder: https://www.youtube.com/playlist?list=PLxxxx
+    validations: { required: true }
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes (optional)
+      placeholder: Anything else we should know?

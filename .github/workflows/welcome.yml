@@ -1,0 +1,46 @@
+name: Welcome new team (Telegram)
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  welcome:
+    # реагируем только на заявки с шаблона (label registration)
+    if: contains(github.event.issue.labels.*.name, 'registration')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract fields from Issue Form
+        id: f
+        run: |
+          BODY<<'EOF'
+          ${{ github.event.issue.body }}
+          EOF
+          # Issue Forms рендерятся как:
+          # ### Team name \n <value>
+          get_val() { grep -A1 "^### $1" <<<"$BODY" | tail -1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'; }
+
+          TEAM=$(get_val "Team name");       [ -n "$TEAM" ] || TEAM="—"
+          COUNTRY=$(get_val "Country/Region"); [ -n "$COUNTRY" ] || COUNTRY="—"
+          CHAN=$(get_val "YouTube channel URL"); [ -n "$CHAN" ] || CHAN="#"
+          PLAY=$(get_val "Season playlist URL"); [ -n "$PLAY" ] || PLAY="#"
+
+          echo "TEAM=$TEAM"       >> $GITHUB_OUTPUT
+          echo "COUNTRY=$COUNTRY" >> $GITHUB_OUTPUT
+          echo "CHAN=$CHAN"       >> $GITHUB_OUTPUT
+          echo "PLAY=$PLAY"       >> $GITHUB_OUTPUT
+
+      - name: Post welcome to Telegram
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_FORWARD_TO }}
+          TEAM: ${{ steps.f.outputs.TEAM }}
+          COUNTRY: ${{ steps.f.outputs.COUNTRY }}
+          CHAN: ${{ steps.f.outputs.CHAN }}
+          PLAY: ${{ steps.f.outputs.PLAY }}
+          URL: ${{ github.event.issue.html_url }}
+          NUM: ${{ github.event.issue.number }}
+        run: |
+          TEXT="<b>👋 Welcome, ${TEAM}</b> (${COUNTRY})%0AChannel: <a href='${CHAN}'>link</a>%0APlaylist: <a href='${PLAY}'>link</a>%0ARegistration: <a href='${URL}'>#${NUM}</a>"
+          curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TG_CHAT}" -d parse_mode="HTML" --data-urlencode text="${TEXT}" >/dev/null
