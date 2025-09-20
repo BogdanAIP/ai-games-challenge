@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Join — AI Games Challenge</title>
+  <link rel="stylesheet" href="./styles.css"/>
+  <style>
+    .join-wrap{max-width:920px;margin:2rem auto;padding:0 1rem}
+    form{display:grid;gap:12px}
+    input,textarea,select{padding:.75rem;border:1px solid #e1e3e6;border-radius:10px}
+    label{font-weight:600}
+    .row{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+    .btn{padding:.75rem 1rem;border-radius:12px;border:none;background:#111;color:#fff;cursor:pointer}
+    .note{color:#687076;font-size:.95rem}
+    .ok{color:#0a7a3d}
+    .err{color:#b00020}
+  </style>
+</head>
+<body>
+  <main class="join-wrap">
+    <h1 class="notranslate" translate="no">AI Games Challenge — Join</h1>
+    <p>Register your team, link your YouTube channel & season playlist, and upload your rules. We’ll verify and post a welcome note in our official Telegram channel.</p>
+
+    <form id="joinForm">
+      <label>Team name
+        <input name="team" required placeholder="Vortex Crew">
+      </label>
+
+      <div class="row">
+        <label>Country/Region
+          <input name="country" required placeholder="NL">
+        </label>
+        <label>Contact (email or Telegram @handle)
+          <input name="contact" required placeholder="team@example.com or @team_handle">
+        </label>
+      </div>
+
+      <label>YouTube channel URL
+        <input name="channel_url" type="url" required placeholder="https://youtube.com/@yourteam">
+      </label>
+
+      <label>Season playlist URL
+        <input name="playlist_url" type="url" required placeholder="https://www.youtube.com/playlist?list=PLxxxx">
+      </label>
+
+      <label>Verification token (paste this into your playlist description)
+        <input name="token" required placeholder="AIGC-TEAM-1234">
+      </label>
+
+      <label>Rules file (PDF/DOC/MD, up to 5 MB)
+        <input id="rules_file" name="rules_file" type="file" accept=".pdf,.doc,.docx,.md,.txt" />
+      </label>
+
+      <label>Notes (optional)
+        <textarea name="notes" rows="4" placeholder="Anything else we should know?"></textarea>
+      </label>
+
+      <label>
+        <input type="checkbox" required> I confirm the information is accurate and I hold the rights to the submitted materials.
+      </label>
+
+      <button class="btn" type="submit">Submit registration</button>
+      <p id="msg" class="note"></p>
+    </form>
+  </main>
+
+  <script>
+  // ← твой endpoint Web App (Google Apps Script)
+  const FORM_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzr72GXR_bKAmSOjZ5GigOFqrPBJ9xMp8pYwRc7Utd9AKYUBPxfR9aKuWVq0Um6xCMI/exec';
+
+  async function fileToBase64(file) {
+    if (!file) return null;
+    const buf = await file.arrayBuffer();
+    let binary = '';
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+
+  document.getElementById('joinForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('msg');
+    msg.textContent = 'Submitting…';
+
+    const fd = new FormData(e.target);
+    const required = ['team','country','contact','channel_url','playlist_url','token'];
+    for (const k of required) {
+      if (!fd.get(k) || String(fd.get(k)).trim()==='') {
+        msg.textContent = 'Please fill all required fields.'; msg.className='note err'; return;
+      }
+    }
+    const file = fd.get('rules_file');
+    if (file && file.size > 5*1024*1024) { msg.textContent='File too large (max 5MB).'; msg.className='note err'; return; }
+
+    const payload = {
+      team: fd.get('team'),
+      country: fd.get('country'),
+      contact: fd.get('contact'),
+      channel_url: fd.get('channel_url'),
+      playlist_url: fd.get('playlist_url'),
+      token: fd.get('token'),
+      notes: fd.get('notes') || '',
+      file: file && file.size ? {
+        name: file.name,
+        mime: file.type || 'application/octet-stream',
+        base64: await fileToBase64(file)
+      } : null
+    };
+
+    try {
+      const res = await fetch(FORM_ENDPOINT, {
+        method:'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Submission failed');
+      msg.innerHTML = `✅ <span class="ok">Submitted.</span> Registration #${data.issue_number}. We’ll review it soon.`;
+      e.target.reset();
+      document.getElementById('rules_file').value = '';
+    } catch (err) {
+      msg.textContent = 'Submission error: ' + err.message; msg.className='note err';
+    }
+  });
+  </script>
+</body>
+</html>
