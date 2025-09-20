@@ -9,26 +9,55 @@ body:
       label: Team name
       placeholder: Vortex Crew
     validations: { required: true }
+
   - type: input
     id: country
     attributes:
       label: Country/Region
       placeholder: NL
     validations: { required: true }
+
   - type: input
     id: channel
     attributes:
       label: YouTube channel URL
       placeholder: https://youtube.com/@yourteam
     validations: { required: true }
+
   - type: input
     id: playlist
     attributes:
       label: Season playlist URL
       placeholder: https://www.youtube.com/playlist?list=PLxxxx
     validations: { required: true }
-  - type: textarea
-    id: notes
+
+  - type: input
+    id: token
     attributes:
-      label: Notes (optional)
-      placeholder: Anything else we should know?
+      label: Verification token (paste into your playlist description)
+      placeholder: e.g. AIGC-TEAM-1234
+      description: "You will also paste this token into your YouTube season playlist description."
+    validations: { required: true }
+
+  - type: input
+    id: rules_link
+    attributes:
+      label: Rules file link (optional)
+      placeholder: https://…
+      description: "Optionally provide a URL to your rules doc (Google Drive/Docs, etc.)."
+    validations: { required: false }
+
+  - type: markdown
+    attributes:
+      value: |
+        **Attach your rules file below** (PDF/MD/Doc) by dragging & dropping into this issue — GitHub will upload it and insert a link.
+
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Confirmations
+      options:
+        - label: "I confirm the information is accurate and I own/hold the rights to the submitted materials."
+          required: true
+        - label: "I agree to the AI Games Challenge rules and community guidelines."
+          required: true
