@@ -1,0 +1,52 @@
+name: Build participants & leaderboard
+
+on:
+  workflow_dispatch: {}
+  # при изменениях Issues с меткой registration — пересобрать
+  issues:
+    types: [opened, edited, labeled, unlabeled]
+  schedule:
+    - cron: "23 6 * * *"   # ежедневно 06:23 UTC (~08:23 Amsterdam)
+
+permissions:
+  contents: write
+  issues: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'registration'))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Build participants.json
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/build_registry.py
+          test -f site/public/participants.json && jq . site/public/participants.json | head -n 50 || true
+
+      - name: Build leaderboard.json
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: |
+          python3 scripts/build_leaderboard.py
+          test -f site/public/leaderboard.json && jq . site/public/leaderboard.json | head -n 50 || true
+
+      - name: Commit & push artifacts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add site/public/participants.json site/public/leaderboard.json
+          git commit -m "chore(leaderboard): auto-build participants & leaderboard [skip ci]" || echo "nothing to commit"
+          git push
