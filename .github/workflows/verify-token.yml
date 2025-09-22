@@ -1,0 +1,41 @@
+name: Verify YouTube token
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: "Issue number to verify (optional)"
+        required: false
+  issues:
+    types: [opened, edited, labeled]
+  schedule:
+    - cron: "13 6 * * *"  # каждый день 06:13 UTC (08:13 Amsterdam)
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'registration')) ||
+      github.event_name == 'schedule'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run verifier
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          ISSUE_NUMBER: ${{ github.event.inputs.issue || github.event.issue.number }}
+        run: |
+          python3 scripts/verify_token.py
