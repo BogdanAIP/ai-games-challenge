@@ -176,3 +176,10 @@
 .prose p,.prose li{line-height:1.6}
 .prose pre{background:#0f1420;border:1px solid #263044;border-radius:8px;padding:10px;overflow:auto}
 .prose code{background:#0f1420;border:1px solid #263044;border-radius:6px;padding:0 4px}
+
+/* --- Accent link unify (match in-card links like "View full rules & logos") --- */
+.inline-accent { color: inherit; }
+.section a.inline-accent,
+.subtitle a.inline-accent,
+.muted a.inline-accent { color: #0a58ca; } /* близко к стандартному "link blue" / bootstrap primary */
+.inline-accent:hover { text-decoration: underline; }
