@@ -183,3 +183,6 @@
 .subtitle a.inline-accent,
 .muted a.inline-accent { color: #0a58ca; } /* близко к стандартному "link blue" / bootstrap primary */
 .inline-accent:hover { text-decoration: underline; }
+
+/* Ensure accent color also inside prose blocks */
+.prose a.inline-accent { color: #0a58ca; }
