@@ -7,19 +7,32 @@
   <link rel="stylesheet" href="./styles.css"/>
   <style>
     .join-wrap{max-width:920px;margin:2rem auto;padding:0 1rem}
+    .top-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+    .btn{display:inline-block;padding:.6rem 1rem;border-radius:12px;border:none;background:#111;color:#fff;text-decoration:none;cursor:pointer}
+    .btn:hover{opacity:.9}
+    .btn-secondary{background:#2b2f31}
     form{display:grid;gap:12px}
-    input,textarea,select{padding:.75rem;border:1px solid #e1e3e6;border-radius:10px}
     label{font-weight:600}
     .row{display:grid;gap:12px;grid-template-columns:1fr 1fr}
-    .btn{padding:.75rem 1rem;border-radius:12px;border:none;background:#111;color:#fff;cursor:pointer}
+    input,textarea,select{padding:.75rem;border:1px solid #e1e3e6;border-radius:10px;background:#111;color:#fff}
+    input[type="file"]{padding:.5rem;background:#111;color:#fff}
+    input::placeholder, textarea::placeholder{color:#9aa0a6}
     .note{color:#687076;font-size:.95rem}
     .ok{color:#0a7a3d}
     .err{color:#b00020}
+    .token-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}
+    .muted{color:#687076}
+    .inline-accent{color:#0a58ca}
+    .inline-accent:hover{text-decoration:underline}
   </style>
 </head>
 <body>
   <main class="join-wrap">
-    <h1 class="notranslate" translate="no">AI Games Challenge — Join</h1>
+    <div class="top-row">
+      <a href="./index.html" class="btn btn-secondary">← Back</a>
+      <h1 class="notranslate" translate="no" style="margin:0">AI Games Challenge — Join</h1>
+    </div>
+
     <p>Register your team, link your YouTube channel & season playlist, and upload your rules. We’ll verify and post a welcome note in our official Telegram channel.</p>
 
     <form id="joinForm">
@@ -44,9 +57,13 @@
         <input name="playlist_url" type="url" required placeholder="https://www.youtube.com/playlist?list=PLxxxx">
       </label>
 
-      <label>Verification token (paste this into your playlist description)
-        <input name="token" required placeholder="AIGC-TEAM-1234">
-      </label>
+      <div class="token-row">
+        <label>Verification token (paste this into your playlist description)
+          <input id="token" name="token" required placeholder="AIGC-TEAM-XXXX">
+        </label>
+        <button class="btn" type="button" id="genTokenBtn" title="Generate token">Generate</button>
+      </div>
+      <p class="note">We’ll later verify the token by reading your playlist description.</p>
 
       <label>Rules file (PDF/DOC/MD, up to 5 MB)
         <input id="rules_file" name="rules_file" type="file" accept=".pdf,.doc,.docx,.md,.txt" />
@@ -57,7 +74,14 @@
       </label>
 
       <label>
-        <input type="checkbox" required> I confirm the information is accurate and I hold the rights to the submitted materials.
+        <input type="checkbox" required>
+        I confirm the information is accurate and I hold the rights to the submitted materials.
+      </label>
+
+      <label>
+        <input type="checkbox" required>
+        I agree to the <a href="./rules.html" class="inline-accent" target="_self" rel="noopener">Rules</a>
+        <span class="muted">(you can also download a full version later)</span>.
       </label>
 
       <button class="btn" type="submit">Submit registration</button>
@@ -66,8 +90,15 @@
   </main>
 
   <script>
-  // ← твой endpoint Web App (Google Apps Script)
+  // Your Google Apps Script endpoint:
   const FORM_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzr72GXR_bKAmSOjZ5GigOFqrPBJ9xMp8pYwRc7Utd9AKYUBPxfR9aKuWVq0Um6xCMI/exec';
+
+  function genToken() {
+    // Простая, но уникальная схема для MVP: AIGC-<6 алфанум>-<ts36>
+    const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const ts  = Date.now().toString(36).toUpperCase();
+    return `AIGC-${rnd}-${ts}`;
+  }
 
   async function fileToBase64(file) {
     if (!file) return null;
@@ -77,6 +108,14 @@
     for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
     return btoa(binary);
   }
+
+  // Автогенерация токена при загрузке (если пусто) + кнопка Generate
+  window.addEventListener('DOMContentLoaded', () => {
+    const tokenEl = document.getElementById('token');
+    if (tokenEl && !tokenEl.value) tokenEl.value = genToken();
+    const btn = document.getElementById('genTokenBtn');
+    btn?.addEventListener('click', () => { tokenEl.value = genToken(); tokenEl.focus(); tokenEl.select(); });
+  });
 
   document.getElementById('joinForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -119,6 +158,8 @@
       msg.innerHTML = `✅ <span class="ok">Submitted.</span> Registration #${data.issue_number}. We’ll review it soon.`;
       e.target.reset();
       document.getElementById('rules_file').value = '';
+      // сгенерируем новый токен на будущее
+      document.getElementById('token').value = genToken();
     } catch (err) {
       msg.textContent = 'Submission error: ' + err.message; msg.className='note err';
     }
