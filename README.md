@@ -1,2 +1,10 @@
-# ai-games-challenge
-AI Games Challenge is a seasonal registry and leaderboard for AI-assisted hybrid sports. Participants create new games, publish videos in a YouTube playlist, and the system verifies, tracks, and ranks them daily. Inspired by Speedgate (AKQA, 2019).
+# Devcontainer (Codespaces) Setup
+
+This repository previously had no `.devcontainer/`. The minimal config here uses a stable base image
+and avoids Docker-in-Docker/compose to prevent `spawn docker ENOENT` during Codespaces creation.
+
+## How to use
+1. Commit this folder to the repository.
+2. In Codespaces, run “Rebuild Container” → “Rebuild without cache”.
+
+If you later need additional tools, add them via `features` in `devcontainer.json` or inside `postCreate.sh`.
