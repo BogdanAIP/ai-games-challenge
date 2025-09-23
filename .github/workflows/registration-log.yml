@@ -1,0 +1,56 @@
+name: Registration Log
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+  issue_comment:
+    types: [created]
+
+jobs:
+  log:
+    if: >
+      (github.event_name == 'issues' &&
+       (contains(github.event.issue.labels.*.name, 'registration') || startsWith(github.event.issue.title, 'Registration:')))
+      || (github.event_name == 'issue_comment' &&
+          (contains(github.event.issue.labels.*.name, 'registration') || startsWith(github.event.issue.title, 'Registration:')))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compose registration log
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          REPO: ${{ github.repository }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: |
+          echo "## Registration log for #${ISSUE_NUMBER}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Repo:** ${REPO}  " >> $GITHUB_STEP_SUMMARY
+          echo "**Issue:** [#${ISSUE_NUMBER}](${ISSUE_URL})  " >> $GITHUB_STEP_SUMMARY
+          echo "**Title:** ${ISSUE_TITLE}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo '### Parsed fields' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${ISSUE_BODY}" | awk '
+            /### Team name/           {getline; print "team: " $0}
+            /### Country\/Region/     {getline; print "country: " $0}
+            /### Contact/             {getline; print "contact: " $0}
+            /### YouTube channel URL/ {getline; print "channel_url: " $0}
+            /### Season playlist URL/ {getline; print "playlist_url: " $0}
+            /### Verification token/  {getline; print "token: " $0}
+          ' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "${COMMENT_BODY}" ] && echo "${COMMENT_BODY}" | grep -q "Registration meta (server log)"; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Server meta" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "${COMMENT_BODY}" | awk '/```json/{flag=1;next}/```/{flag=0}flag{print}' >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Event: ${EVENT_NAME}_  " >> $GITHUB_STEP_SUMMARY
