@@ -186,3 +186,7 @@
 
 /* Ensure accent color also inside prose blocks */
 .prose a.inline-accent { color: #0a58ca; }
+
+.alert { padding: .75rem 1rem; border-radius: .5rem; }
+.alert-ok  { background:#0b5; color:#fff; }
+.alert-err { background:#b00; color:#fff; }
