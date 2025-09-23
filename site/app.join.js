@@ -1,3 +1,5 @@
+if(!window.__AIGC_JOIN_LOADED__){window.__AIGC_JOIN_LOADED__=true;
+(function(){
 /**
  * Join form client logic (reads endpoint from site/public/config.json)
  * - Strictly requires JSON response; if HTML/echo arrives — shows a clear error.
@@ -177,3 +179,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const mintBtn = document.getElementById('mint-token') || document.querySelector('[data-action="mint"]');
   if (mintBtn) mintBtn.addEventListener('click', handleMintClick);
 });
+
+})();
+}
