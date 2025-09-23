@@ -20,11 +20,11 @@ async function pingEndpoint() {
   // Optional health-check: if server doesn’t return JSON, fail fast
   const r = await fetch(FORM_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     body: JSON.stringify({ action: 'ping' })
   });
   const ct = (r.headers.get('content-type') || '').toLowerCase();
-  if (!ct.includes('application/json')) {
+  if (!ct.includes('text/plain; charset=utf-8')) {
     const t = await r.text();
     throw new Error('Endpoint returned non-JSON (likely echo/stub). Check FORM_ENDPOINT.\n' + t.slice(0, 500));
   }
@@ -106,12 +106,12 @@ async function collectPayload() {
 async function submitJoin(payload) {
   const r = await fetch(FORM_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     // server generates token itself; client does not send "token"
     body: JSON.stringify(payload)
   });
   const ct = (r.headers.get('content-type') || '').toLowerCase();
-  if (!ct.includes('application/json')) {
+  if (!ct.includes('text/plain; charset=utf-8')) {
     const text = await r.text();
     throw new Error('Unexpected non-JSON response from endpoint.\nCheck FORM_ENDPOINT.\n\n' + text.slice(0, 800));
   }
@@ -126,11 +126,11 @@ async function handleMintClick(ev) {
     setBusy(true);
     const r = await fetch(FORM_ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       body: JSON.stringify({ action: 'mint' })
     });
     const ct = (r.headers.get('content-type') || '').toLowerCase();
-    if (!ct.includes('application/json')) {
+    if (!ct.includes('text/plain; charset=utf-8')) {
       const text = await r.text();
       throw new Error('Unexpected non-JSON from mint.\n' + text.slice(0, 500));
     }
