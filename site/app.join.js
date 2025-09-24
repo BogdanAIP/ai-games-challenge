@@ -1,3 +1,4 @@
+(function(){ window.FORM_ENDPOINT = window.FORM_ENDPOINT || 'https://script.google.com/macros/s/AKfycbx81KK5qfSzIpRHLyemRPfafF3f-zCsHlaQVMh3Z0p68CTHcjp8RWz-9WG2OtsbYQX0/exec'; })();
 /* Join form client — no-preflight (text/plain), sends JSON string.
  * Требуются поля с id: team, country, contact, channel_url, playlist_url, notes, rules_file
  * Кнопки/элементы: #btn-mint (Generate token), #token (read-only), #join-form, #join-status
