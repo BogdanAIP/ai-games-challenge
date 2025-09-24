@@ -1,107 +1,134 @@
 (function(){
-  // ЕДИНСТВЕННЫЙ источник: меняй URL ТОЛЬКО тут
-  window.FORM_ENDPOINT = 'https://script.google.com/macros/s/AKfycbx81KK5qfSzIpRHLyemRPfafF3f-zCsHlaQVMh3Z0p68CTHcjp8RWz-9WG2OtsbYQX0/exec';
+  // Единая точка правды: window.FORM_ENDPOINT
+  // Если не задан извне — останется плейсхолдер, заменим ниже sed-ом.
+  if (!window.FORM_ENDPOINT) window.FORM_ENDPOINT = "https://script.google.com/macros/s/AKfycbx81KK5qfSzIpRHLyemRPfafF3f-zCsHlaQVMh3Z0p68CTHcjp8RWz-9WG2OtsbYQX0/exec";
+  // Защитимся от случайных одинарных кавычек вокруг строки:
+  window.FORM_ENDPOINT = String(window.FORM_ENDPOINT).replace(/^'+|'+$/g, '');
+})();
 
-  function $(s){ return document.querySelector(s); }
+/* Join form (JSONP) — без CORS / preflight.
+ * На сервер уйдут: team, country, contact, channel_url, playlist_url, notes.
+ * Файл через JSONP не отправляем (слишком большой для query-string).
+ */
+function $(sel){ return document.querySelector(sel); }
 
-  // JSONP: передаем payload (base64) + callback
-  function jsonpCall(obj, timeoutMs){
-    return new Promise(function(resolve,reject){
-      const cb = 'cb_' + Math.random().toString(36).slice(2);
-      const t  = setTimeout(function(){
-        cleanup(); reject(new Error('JSONP timeout'));
-      }, timeoutMs || 20000);
+function setMsg(text, kind){
+  const el = $('#msg');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'note ' + (kind || '');
+}
 
-      function cleanup(){
-        try { delete window[cb]; } catch(e){}
-        if (script && script.parentNode) script.parentNode.removeChild(script);
-        clearTimeout(t);
-      }
+function genToken(){
+  const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
+  const ts  = Date.now().toString(36).toUpperCase();
+  return `AIGC-${rnd}-${ts}`;
+}
 
-      window[cb] = function(data){ cleanup(); resolve(data); };
+function jsonpCall(payload, timeoutMs){
+  return new Promise(function(resolve, reject){
+    const cbName = 'cb_' + Math.random().toString(36).slice(2);
+    const s = document.createElement('script');
+    const url = new URL(window.FORM_ENDPOINT);
+    url.searchParams.set('callback', cbName);
+    url.searchParams.set('payload', JSON.stringify(payload));
 
-      // NB: payload может быть крупным → для MVP: без rules_file в JSONP
-      const payload = btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
-      const src = `${window.FORM_ENDPOINT}?callback=${encodeURIComponent(cb)}&payload=${encodeURIComponent(payload)}`;
-
-      const script = document.createElement('script');
-      script.src = src;
-      script.onerror = function(){ cleanup(); reject(new Error('JSONP load error')); };
-      document.head.appendChild(script);
-    });
-  }
-
-  function genToken(){
-    const rnd = Math.random().toString(36).slice(2,8).toUpperCase();
-    const ts  = Date.now().toString(36).toUpperCase();
-    return `AIGC-${rnd}-${ts}`;
-  }
-
-  function setMsg(text, cls){
-    const el = $('#msg');
-    if(!el) return;
-    el.className = 'note' + (cls ? ' ' + cls : '');
-    el.textContent = text;
-  }
-
-  // Mint токена через JSONP
-  async function mintToken(){
-    try{
-      setMsg('Minting token…');
-      const data = await jsonpCall({ action:'mint' }, 15000);
-      if(!data || !data.ok){ throw new Error(data && data.error || 'mint failed'); }
-      const t = $('#token'); if(t) t.value = data.token || '';
-      setMsg('Token generated.', 'ok');
-    }catch(e){
-      setMsg('Mint error: ' + e.message, 'err');
-    }
-  }
-
-  // Сабмит формы (JSONP, без файла для избежания лимитов URL)
-  async function handleSubmit(ev){
-    ev.preventDefault();
-    setMsg('Submitting…');
-
-    const fd = new FormData(ev.target);
-    const payload = {
-      team:         (fd.get('team')||'').trim(),
-      country:      (fd.get('country')||'').trim(),
-      contact:      (fd.get('contact')||'').trim(),
-      channel_url:  (fd.get('channel_url')||'').trim(),
-      playlist_url: (fd.get('playlist_url')||'').trim(),
-      notes:        (fd.get('notes')||'').trim()
-      // token сейчас сервер генерирует сам; поле на форме носит информ. характер
+    let done = false;
+    window[cbName] = function(resp){
+      if (done) return;
+      done = true;
+      resolve(resp);
+      cleanup();
     };
 
-    // файл ПОКА НЕ ШЛЁМ через JSONP (слишком длинный URL) — предложим отправить позже в Issue
-    const fileEl = $('#rules_file');
-    if (fileEl && fileEl.files && fileEl.files[0]) {
-      setMsg('For now, please submit without file. You can attach the rules file directly in the created GitHub issue.', 'err');
-      return;
+    function cleanup(){
+      delete window[cbName];
+      if (s && s.parentNode) s.parentNode.removeChild(s);
     }
 
-    for(const k of ['team','country','contact','channel_url','playlist_url']){
-      if(!payload[k]){ setMsg(`Missing field: ${k}`,'err'); return; }
-    }
+    s.onerror = function(){
+      if (done) return;
+      done = true;
+      reject(new Error('JSONP load error'));
+      cleanup();
+    };
 
-    try{
-      const data = await jsonpCall(payload, 20000);
-      if(!data || !data.ok){ throw new Error((data && data.error) || 'submission failed'); }
-      setMsg(`✅ Submitted. Registration #${data.issue_number}. We'll review it soon.`, 'ok');
-      ev.target.reset();
-      const tokenEl = $('#token'); if(tokenEl) tokenEl.value = genToken();
-    }catch(e){
-      setMsg('Submission error: ' + e.message, 'err');
-    }
+    document.head.appendChild(s);
+
+    const to = setTimeout(function(){
+      if (done) return;
+      done = true;
+      reject(new Error('JSONP timeout'));
+      cleanup();
+    }, timeoutMs || 20000);
+
+    // если всё закончилось — снимаем таймер
+    const oldCB = window[cbName];
+    window[cbName] = function(x){
+      clearTimeout(to);
+      return oldCB(x);
+    };
+    s.src = url.toString();
+  });
+}
+
+async function mintToken(){
+  setMsg('Minting token…', 'info');
+  try{
+    const data = await jsonpCall({ action:'mint' });
+    if (!data || !data.ok || !data.token) throw new Error(data && data.error || 'mint failed');
+    const t = $('#token'); if (t) t.value = data.token;
+    setMsg('Token generated.', 'ok');
+  }catch(err){
+    setMsg('Mint error: ' + err.message, 'err');
+  }
+}
+
+async function handleSubmit(ev){
+  ev.preventDefault();
+  setMsg('Submitting…', 'info');
+
+  const fd = new FormData(ev.target);
+  const required = ['team','country','contact','channel_url','playlist_url'];
+  for (const k of required){
+    const v = (fd.get(k) || '').toString().trim();
+    if (!v){ setMsg('Please fill all required fields.', 'err'); return; }
   }
 
-  document.addEventListener('DOMContentLoaded', function(){
-    // авто-токен + кнопка Generate
-    const tokenEl = $('#token');
-    if (tokenEl && !tokenEl.value) tokenEl.value = genToken();
-    const btn = $('#genTokenBtn'); if(btn) btn.addEventListener('click', function(){ tokenEl.value = genToken(); tokenEl.select(); });
+  // JSONP-вариант: файл не шлём (слишком велик для URL). Сообщим пользователю.
+  const file = fd.get('rules_file');
+  if (file && file.size){
+    setMsg('Note: rules file is not sent via web form (JSONP). We will request it later.', 'info');
+  }
 
-    const form = document.getElementById('joinForm');
-    if (form) form.addEventListener('submit', handleSubmit);
-  });
-})();
+  const payload = {
+    team:         fd.get('team'),
+    country:      fd.get('country'),
+    contact:      fd.get('contact'),
+    channel_url:  fd.get('channel_url'),
+    playlist_url: fd.get('playlist_url'),
+    notes:        fd.get('notes') || ''
+    // token — только для UX, сервер всё равно генерирует свой
+  };
+
+  try{
+    const data = await jsonpCall(payload);
+    if (!data || !data.ok) throw new Error((data && data.error) || 'Server error');
+    setMsg('✅ Submitted. Registration #' + data.issue_number + (data.issue_url ? (' — ' + data.issue_url) : ''), 'ok');
+    ev.target.reset();
+    const t = $('#token'); if (t) t.value = genToken();
+  }catch(err){
+    setMsg('Submission error: ' + err.message, 'err');
+  }
+}
+
+function boot(){
+  const t = $('#token');
+  if (t && !t.value) t.value = genToken();
+  const b = document.getElementById('genTokenBtn');
+  if (b) b.addEventListener('click', function(){ const t=$('#token'); t.value=genToken(); t.focus(); t.select(); });
+  const f = document.getElementById('joinForm');
+  if (f) f.addEventListener('submit', handleSubmit);
+}
+
+document.addEventListener('DOMContentLoaded', boot);
