@@ -95,6 +95,82 @@
     </form>
   </main>
 
-  </body>
-  <script src="./app.join.js?v=5"></script>
+  <script>
+  // Your Google Apps Script endpoint:
+  const FORM_ENDPOINT = 'https://script.google.com/macros/s/AKfycbx81KK5qfSzIpRHLyemRPfafF3f-zCsHlaQVMh3Z0p68CTHcjp8RWz-9WG2OtsbYQX0/exec';
+
+  function genToken() {
+    // Простая, но уникальная схема для MVP: AIGC-<6 алфанум>-<ts36>
+    const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const ts  = Date.now().toString(36).toUpperCase();
+    return `AIGC-${rnd}-${ts}`;
+  }
+
+  async function fileToBase64(file) {
+    if (!file) return null;
+    const buf = await file.arrayBuffer();
+    let binary = '';
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+
+  // Автогенерация токена при загрузке (если пусто) + кнопка Generate
+  window.addEventListener('DOMContentLoaded', () => {
+    const tokenEl = document.getElementById('token');
+    if (tokenEl && !tokenEl.value) tokenEl.value = genToken();
+    const btn = document.getElementById('genTokenBtn');
+    btn?.addEventListener('click', () => { tokenEl.value = genToken(); tokenEl.focus(); tokenEl.select(); });
+  });
+
+  document.getElementById('joinForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('msg');
+    msg.textContent = 'Submitting…';
+
+    const fd = new FormData(e.target);
+    const required = ['team','country','contact','channel_url','playlist_url','token'];
+    for (const k of required) {
+      if (!fd.get(k) || String(fd.get(k)).trim()==='') {
+        msg.textContent = 'Please fill all required fields.'; msg.className='note err'; return;
+      }
+    }
+    const file = fd.get('rules_file');
+    if (file && file.size > 5*1024*1024) { msg.textContent='File too large (max 5MB).'; msg.className='note err'; return; }
+
+    const payload = {
+      team: fd.get('team'),
+      country: fd.get('country'),
+      contact: fd.get('contact'),
+      channel_url: fd.get('channel_url'),
+      playlist_url: fd.get('playlist_url'),
+      token: fd.get('token'),
+      notes: fd.get('notes') || '',
+      file: file && file.size ? {
+        name: file.name,
+        mime: file.type || 'application/octet-stream',
+        base64: await fileToBase64(file)
+      } : null
+    };
+
+    try {
+      const res = await fetch(FORM_ENDPOINT, {
+        method:'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Submission failed');
+      msg.innerHTML = `✅ <span class="ok">Submitted.</span> Registration #${data.issue_number}. We’ll review it soon.`;
+      e.target.reset();
+      document.getElementById('rules_file').value = '';
+      // сгенерируем новый токен на будущее
+      document.getElementById('token').value = genToken();
+    } catch (err) {
+      msg.textContent = 'Submission error: ' + err.message; msg.className='note err';
+    }
+  });
+  </script>
+  <script src="./app.join.js?v=2"></script>
+</body>
 </html>
