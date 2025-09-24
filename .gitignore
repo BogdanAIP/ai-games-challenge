@@ -1,5 +1,10 @@
+# backups & temp
+*.bak
+*.bak.*
+*backup*.html
+*~ 
+.DS_Store
 
-# local backups
-*.bak*
-site/*.bak*
-
+# node / tools (на будущее)
+node_modules/
+dist/
