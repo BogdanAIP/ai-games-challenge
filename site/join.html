@@ -24,15 +24,14 @@
     .muted{color:#687076}
     .inline-accent{color:#0a58ca}
     .inline-accent:hover{text-decoration:underline}
-  .back-row{text-align:center;margin:12px 0 36px}.back-row a{color:#687076;text-decoration:none}.back-row a:hover{text-decoration:underline}
-.page-hero{max-width:920px;margin:0 auto 32px;text-align:center}
-.page-hero h1{margin:0}
-.page-hero h2{margin:.4rem 0 0;color:#687076;font-weight:600}
-.back-row{text-align:center;margin:12px 0 36px}
-.back-row a{color:#687076;text-decoration:none}
-.back-row a:hover{text-decoration:underline}
-</style>
-
+    .back-row{text-align:center;margin:12px 0 36px}.back-row a{color:#687076;text-decoration:none}.back-row a:hover{text-decoration:underline}
+    .page-hero{max-width:920px;margin:0 auto 32px;text-align:center}
+    .page-hero h1{margin:0}
+    .page-hero h2{margin:.4rem 0 0;color:#687076;font-weight:600}
+    .back-row{text-align:center;margin:12px 0 36px}
+    .back-row a{color:#687076;text-decoration:none}
+    .back-row a:hover{text-decoration:underline}
+  </style>
 </head>
 <body>
 <header class="hero">
@@ -40,63 +39,69 @@
   <p class="subtitle">Join — register your team</p>
   <div class="cta-row"><a class="btn" href="./index.html">← Back</a></div>
 </header>
-  <main class="join-wrap"><p>Register your team, link your YouTube channel & season playlist, and upload your rules. We’ll verify and post a welcome note in our official Telegram channel.</p>
 
-    <form id="joinForm">
-      <label>Team name
-        <input name="team" required placeholder="Vortex Crew">
+<main class="join-wrap">
+  <p>Register your team, link your YouTube channel & season playlist, and upload your rules. We’ll verify and post a welcome note in our official Telegram channel.</p>
+
+  <form id="joinForm">
+    <label>Team name
+      <input name="team" required placeholder="Vortex Crew">
+    </label>
+
+    <div class="row">
+      <label>Country/Region
+        <input name="country" required placeholder="NL">
       </label>
-
-      <div class="row">
-        <label>Country/Region
-          <input name="country" required placeholder="NL">
-        </label>
-        <label>Contact (email or Telegram @handle)
-          <input name="contact" required placeholder="team@example.com or @team_handle">
-        </label>
-      </div>
-
-      <label>YouTube channel URL
-        <input name="channel_url" type="url" required placeholder="https://youtube.com/@yourteam">
+      <label>Contact (email or Telegram @handle)
+        <input name="contact" required placeholder="team@example.com or @team_handle">
       </label>
+    </div>
 
-      <label>Season playlist URL
-        <input name="playlist_url" type="url" required placeholder="https://www.youtube.com/playlist?list=PLxxxx">
+    <label>YouTube channel URL
+      <input name="channel_url" type="url" required placeholder="https://youtube.com/@yourteam">
+    </label>
+
+    <label>Season playlist URL
+      <input name="playlist_url" type="url" required placeholder="https://www.youtube.com/playlist?list=PLxxxx">
+    </label>
+
+    <div class="token-row">
+      <label>Verification token (paste this into your playlist description)
+        <input id="token" name="token" required placeholder="AIGC-TEAM-XXXX">
       </label>
+      <button class="btn" type="button" id="genTokenBtn" title="Generate token">Generate</button>
+    </div>
+    <p class="note">We’ll later verify the token by reading your playlist description.</p>
 
-      <div class="token-row">
-        <label>Verification token (paste this into your playlist description)
-          <input id="token" name="token" required placeholder="AIGC-TEAM-XXXX">
-        </label>
-        <button class="btn" type="button" id="genTokenBtn" title="Generate token">Generate</button>
-      </div>
-      <p class="note">We’ll later verify the token by reading your playlist description.</p>
+    <label>Rules file (PDF/DOC/MD, up to 5 MB)
+      <input id="rules_file" name="rules_file" type="file" accept=".pdf,.doc,.docx,.md,.txt" />
+    </label>
 
-      <label>Rules file (PDF/DOC/MD, up to 5 MB)
-        <input id="rules_file" name="rules_file" type="file" accept=".pdf,.doc,.docx,.md,.txt" />
-      </label>
+    <label>Notes (optional)
+      <textarea name="notes" rows="4" placeholder="Anything else we should know?"></textarea>
+    </label>
 
-      <label>Notes (optional)
-        <textarea name="notes" rows="4" placeholder="Anything else we should know?"></textarea>
-      </label>
+    <label>
+      <input type="checkbox" required>
+      I confirm the information is accurate and I hold the rights to the submitted materials.
+    </label>
 
-      <label>
-        <input type="checkbox" required>
-        I confirm the information is accurate and I hold the rights to the submitted materials.
-      </label>
+    <label>
+      <input type="checkbox" required>
+      I agree to the <a href="./rules_full.html" class="inline-accent" target="_self" rel="noopener">Rules</a>
+      <span class="muted">(you can also download a full version later)</span>.
+    </label>
 
-      <label>
-        <input type="checkbox" required>
-        I agree to the <a href="./rules_full.html" class="inline-accent" target="_self" rel="noopener">Rules</a>
-        <span class="muted">(you can also download a full version later)</span>.
-      </label>
-
-      <button class="btn" type="submit">Submit registration</button>
-      <p id="msg" class="note"></p>
+    <button class="btn" type="submit">Submit registration</button>
+    <p id="msg" class="note"></p>
     <p id="join-status" class="note"></p>
-</form>
-  </main>
+  </form>
+</main>
 
-    <script src="./app.join.js?v=jsonp8"></script>
+<!-- ВАЖНО: перед app.join.js прописываем URL твоего GAS Web App -->
+<script>
+  window.FORM_ENDPOINT = 'https://script.google.com/macros/s/AKfycbylJyzJpV1j-_TNWyQM-qcGIsa7eMxstNUT1woEPkelKoH39LSRvdkXBwqRkorcTiTZ/exec';
+</script>
+<script src="./app.join.js?v=jsonp10"></script>
 </body>
-  </html>
+</html>
