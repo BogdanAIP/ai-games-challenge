@@ -2,7 +2,7 @@
   // Единая точка правды: window.FORM_ENDPOINT
   // Если не задан извне в HTML — используем твой реальный URL как дефолт.
   if (!window.FORM_ENDPOINT) {
-    window.FORM_ENDPOINT = "https://script.google.com/macros/s/AKfycbylJyzJpV1j-_TNWyQM-qcGIsa7eMxstNUT1woEPkelKoH39LSRvdkXBwqRkorcTiTZ/exec";
+  window.FORM_ENDPOINT = "https://script.google.com/macros/s/AKfycbyv25wZctxwL36v1Fs8w6NCKL4pAzGq7iZ8XPmptmqx3FD_u_fUZy4wnVO5MumdrtuB/exec";
   }
   // Защитимся от случайных одинарных кавычек вокруг строки:
   window.FORM_ENDPOINT = String(window.FORM_ENDPOINT).replace(/^'+|'+$/g, '');
