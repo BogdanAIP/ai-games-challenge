@@ -1,21 +1,10 @@
 {
-  "name": "AI Games Challenge (Universal)",
+  "name": "ai-games-challenge",
   "image": "mcr.microsoft.com/devcontainers/universal:2-linux",
+  "remoteUser": "codespace",
   "features": {
     "ghcr.io/devcontainers/features/node:1": { "version": "22" },
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/git:1": {}
-  },
-  "remoteUser": "vscode",
-  "updateRemoteUserUID": true,
-  "postCreateCommand": "bash -lc 'chmod +x .devcontainer/postCreate.sh 2>/dev/null || true; .devcontainer/postCreate.sh 2>/dev/null || true'",
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "ms-vscode.vscode-typescript-next",
-        "ms-azuretools.vscode-docker",
-        "GitHub.vscode-pull-request-github"
-      ]
-    }
   }
 }
