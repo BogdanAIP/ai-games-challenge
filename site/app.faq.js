@@ -1,6 +1,6 @@
 (function(){
   if (!window.FORM_ENDPOINT) {
-    window.FORM_ENDPOINT = "https://script.google.com/macros/s/AKfycbwRMCti9bc53bZCQ8ydXScZocdqDsHUlydoKLMzip0jnmcsz26BbD3iQzdfigwj--OE/exec";
+    window.FORM_ENDPOINT = "https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec";
   }
   window.FORM_ENDPOINT = String(window.FORM_ENDPOINT).replace(/^'+|'+$/g, '');
 })();

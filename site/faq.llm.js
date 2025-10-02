@@ -1,7 +1,7 @@
 (function(){
   const ENDPOINT = String(
     window.FORM_ENDPOINT ||
-    "https://script.google.com/macros/s/AKfycbyv25wZctxwL36v1Fs8w6NCKL4pAzGq7iZ8XPmptmqx3FD_u_fUZy4wnVO5MumdrtuB/exec"
+    "https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec"
   ).replace(/^'+|'+$/g,'');
 
   function jsonpCall(payload, timeoutMs){
