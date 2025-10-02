@@ -2,12 +2,21 @@
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>AI Games Challenge — FAQ</title>
 <link rel="stylesheet" href="./styles.css"/>
+<style>
+  .faq-wrap{max-width:920px;margin:2rem auto;padding:0 1rem}
+  #faq-box{border:1px solid #2b2f31;border-radius:12px;padding:12px;height:340px;overflow:auto;background:#0e0f10}
+  #faq-form{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:12px}
+  #faq-input{padding:.75rem;border:1px solid #2b2f31;border-radius:10px;background:#111;color:#fff}
+  .faq-q,.faq-a{white-space:pre-wrap;margin:.4rem 0}
+</style>
 </head><body>
 <header class="hero">
   <h1 class="notranslate" translate="no">AI Games Challenge</h1>
   <p class="subtitle">Frequently Asked Questions</p>
   <div class="cta-row"><a class="btn" href="./index.html">← Back</a></div>
 </header>
+
+<!-- Статический блок (твой прежний контент) -->
 <main class="section prose">
   <h2>Who can join?</h2>
   <p>Anyone. Solo or team. You only need a public YouTube channel and a season playlist.</p>
@@ -20,5 +29,23 @@
   <h2>How do you prevent cheating?</h2>
   <p>We count only post-registration uploads, cap engagement, and review suspicious spikes.</p>
 </main>
+
+<!-- Интерактивный FAQ-бот -->
+<section class="faq-wrap">
+  <h2>Ask the AI assistant</h2>
+  <p class="note">Ask about registration, full rules, safety, playlists, verification, season tasks, etc.</p>
+  <div id="faq-box" aria-live="polite"></div>
+  <form id="faq-form">
+    <input id="faq-input" placeholder="Например: как проходит сезон и какие этапы?" />
+    <button class="btn" type="submit">Ask</button>
+  </form>
+</section>
+
 <footer class="footer"><p>© AI Games Challenge</p></footer>
+
+<!-- Подключаем endpoint и скрипт -->
+<script>
+  window.FORM_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyv25wZctxwL36v1Fs8w6NCKL4pAzGq7iZ8XPmptmqx3FD_u_fUZy4wnVO5MumdrtuB/exec';
+</script>
+<script src="./app.faq.js?v=faq2"></script>
 </body></html>
