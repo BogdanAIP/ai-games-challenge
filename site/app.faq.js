@@ -1,75 +1,76 @@
 (function(){
-  const ENDPOINT = String(window.FORM_ENDPOINT || "https://script.google.com/macros/s/AKfycbyv25wZctxwL36v1Fs8w6NCKL4pAzGq7iZ8XPmptmqx3FD_u_fUZy4wnVO5MumdrtuB/exec").replace(/^'+|'+$/g,'');
-
-  function jsonpCall(payload, timeoutMs){
-    return new Promise(function(resolve, reject){
-      const cb = 'cb_' + Math.random().toString(36).slice(2);
-      const s  = document.createElement('script');
-      const u  = new URL(ENDPOINT);
-      u.searchParams.set('callback', cb);
-      u.searchParams.set('payload', JSON.stringify(payload));
-
-      let done = false;
-      window[cb] = function(resp){
-        if (done) return;
-        done = true;
-        resolve(resp);
-        cleanup();
-      };
-      function cleanup(){ delete window[cb]; s.remove(); }
-
-      s.onerror = function(){
-        if (done) return;
-        done = true;
-        reject(new Error('JSONP load error'));
-        cleanup();
-      };
-
-      document.head.appendChild(s);
-
-      const to = setTimeout(function(){
-        if (done) return;
-        done = true;
-        reject(new Error('JSONP timeout'));
-        cleanup();
-      }, timeoutMs || 20000);
-
-      const old = window[cb];
-      window[cb] = function(x){ clearTimeout(to); return old(x); };
-
-      s.src = u.toString();
-    });
+  if (!window.FORM_ENDPOINT) {
+    window.FORM_ENDPOINT = "https://script.google.com/macros/s/AKfycbwRMCti9bc53bZCQ8ydXScZocdqDsHUlydoKLMzip0jnmcsz26BbD3iQzdfigwj--OE/exec";
   }
-
-  function $(s){ return document.querySelector(s); }
-
-  async function onFaqSubmit(e){
-    e.preventDefault();
-    const input = $('#faq-input');
-    const box   = $('#faq-box');
-    const q = (input.value||'').trim();
-    if (!q) return;
-
-    input.disabled = true;
-    box.insertAdjacentHTML('beforeend', `<div class="faq-q">🧑 ${q}</div><div class="faq-a">🤖 …</div>`);
-
-    try{
-      const res = await jsonpCall({ action:'faq', question: q });
-      const a = box.querySelector('.faq-a:last-child');
-      a.textContent = '🤖 ' + (res.answer || res.text || '[no answer]');
-    }catch(err){
-      const a = box.querySelector('.faq-a:last-child');
-      a.textContent = '❌ ' + err.message;
-    }finally{
-      input.disabled = false;
-      input.value = '';
-      input.focus();
-      box.scrollTop = box.scrollHeight;
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded', function(){
-    const f = document.getElementById('faq-form');
-    if (f) f.addEventListener('submit', onFaqSubmit);
-  });
+  window.FORM_ENDPOINT = String(window.FORM_ENDPOINT).replace(/^'+|'+$/g, '');
 })();
+
+function $(s){ return document.querySelector(s); }
+
+function jsonpCall(payload, timeoutMs){
+  return new Promise(function(resolve, reject){
+    const cbName = 'cb_' + Math.random().toString(36).slice(2);
+    const s = document.createElement('script');
+    const url = new URL(window.FORM_ENDPOINT);
+    url.searchParams.set('callback', cbName);
+    url.searchParams.set('payload', JSON.stringify(payload));
+    let done = false;
+
+    window[cbName] = function(resp){
+      if (done) return;
+      done = true;
+      resolve(resp);
+      cleanup();
+    };
+    function cleanup(){
+      delete window[cbName];
+      if (s && s.parentNode) s.parentNode.removeChild(s);
+    }
+    s.onerror = function(){
+      if (done) return;
+      done = true;
+      reject(new Error('JSONP load error'));
+      cleanup();
+    };
+    const to = setTimeout(function(){
+      if (done) return;
+      done = true;
+      reject(new Error('JSONP timeout'));
+      cleanup();
+    }, timeoutMs || 20000);
+
+    const old = window[cbName];
+    window[cbName] = function(x){ clearTimeout(to); return old(x); };
+
+    s.src = url.toString();
+    document.head.appendChild(s);
+  });
+}
+
+async function askFaq(){
+  const input = $('#faq-input');
+  const out   = $('#faq-out');
+  const q = (input && input.value || '').trim();
+  if (!q){ out.textContent = 'Введите вопрос…'; return; }
+  out.textContent = 'Думаю…';
+  try{
+    const res = await jsonpCall({ action:'faq', question:q });
+    if (!res || !res.ok){
+      out.textContent = 'Ошибка: ' + (res && res.error || 'server');
+      return;
+    }
+    out.textContent = res.answer || '[нет ответа]';
+  }catch(err){
+    out.textContent = 'Сеть/JSONP ошибка: ' + err.message;
+  }
+}
+
+function bootFaq(){
+  const btn = document.getElementById('faq-ask');
+  if (btn) btn.addEventListener('click', askFaq);
+  const inp = document.getElementById('faq-input');
+  if (inp) inp.addEventListener('keydown', function(ev){
+    if (ev.key === 'Enter'){ ev.preventDefault(); askFaq(); }
+  });
+}
+document.addEventListener('DOMContentLoaded', bootFaq);
