@@ -45,25 +45,29 @@ function doGet(e){
       case 'faq':
         resp = handleFaq_(data);
         break;
+
+      // НУЖНО для reg-бота на странице регистрации (site/app.regbot.js)
+      case 'register':
+        resp = handleRegistrationDialog_(data);
+        break;
+
+      // прямой сабмит из формы (на случай JSONP)
       case 'register_form':
         resp = handleRegistration_(data);
-        break;
-      case 'mint':
-        resp = { ok:true, token:newToken_() };
         break;
 
       // ---------- Админ JSONP-действия (по секрету) ----------
       case 'init_project': {
         var secret = PropertiesService.getScriptProperties().getProperty('SEED_SECRET') || '';
         if ((data.secret||'') !== secret) { resp = { ok:false, error:'forbidden' }; break; }
-        initProject_(); // создаёт/гарантирует листы и шапки
+        initProject_();
         resp = { ok:true, msg:'initProject_ done' };
         break;
       }
       case 'seed_all': {
         var secret2 = PropertiesService.getScriptProperties().getProperty('SEED_SECRET') || '';
         if ((data.secret||'') !== secret2) { resp = { ok:false, error:'forbidden' }; break; }
-        resp = seedAll_(); // твой «засев» (конфиг, промпты, источники RAG)
+        resp = seedAll_();
         break;
       }
 
@@ -125,4 +129,3 @@ function doPost(e){
     return httpJson_({ ok:false, error:String(err && err.message || err) });
   }
 }
-

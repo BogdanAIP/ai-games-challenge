@@ -37,7 +37,7 @@ function jsonpCall(payload, timeoutMs){
       done = true;
       reject(new Error('JSONP timeout'));
       cleanup();
-    }, timeoutMs || 20000);
+    }, timeoutMs || 30000);
 
     const old = window[cbName];
     window[cbName] = function(x){ clearTimeout(to); return old(x); };
