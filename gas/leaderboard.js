@@ -1,68 +1,66 @@
-function handleLeaderboardRefresh_(){
-  var key = PropertiesService.getScriptProperties().getProperty('YOUTUBE_API_KEY');
-  if (!key) return {ok:false, error:'YOUTUBE_API_KEY missing'};
-  var maxPerPl = Math.max(1, Number(cfg_('LB_MAX_VIDEOS_PER_PLAYLIST','50')));
+/** =========================== leaderboard.js ===========================
+ * Простой рефрешер: зеркалит команды из листа "Registrations" в лист
+ * "Leaderboard" с нулевыми метриками (views, likes, er), чтобы фронт
+ * показывал список участников сразу после регистрации.
+ * Позже можно заменить сбором реальных метрик.
+ * ====================================================================== */
 
+function ensureLbSheet_(){
   var ss = SS_();
-  var reg = ss.getSheetByName('Registrations'); if (!reg || reg.getLastRow()<2) return {ok:false,error:'No registrations'};
-  var rows = reg.getRange(2,1,reg.getLastRow()-1,8).getValues();
-
-  var statsByTeam = []; // {team, views, likes, comments}
-  rows.forEach(function(r){
-    var team = String(r[1]||''), playlistUrl = String(r[5]||'');
-    if (!team || !playlistUrl) return;
-    var listId = extractPlaylistId_(playlistUrl); if (!listId) return;
-
-    // 1) playlistItems → videoIds
-    var videoIds = [];
-    var pageToken = '';
-    while(true){
-      var url = 'https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId='
-                + encodeURIComponent(listId) + (pageToken?('&pageToken='+pageToken):'') + '&key=' + key;
-      var resp = UrlFetchApp.fetch(url, {muteHttpExceptions:true});
-      if (resp.getResponseCode()!==200) { logErr_('yt.playlistItems', new Error(resp.getContentText()), {team:team}); break; }
-      var j = JSON.parse(resp.getContentText());
-      (j.items||[]).forEach(function(it){
-        var vid = it?.contentDetails?.videoId; if (vid) videoIds.push(vid);
-      });
-      pageToken = j.nextPageToken || '';
-      if (!pageToken || videoIds.length>=maxPerPl) break;
-    }
-    videoIds = videoIds.slice(0, maxPerPl);
-    if (!videoIds.length) { statsByTeam.push({team:team,views:0,likes:0,comments:0}); return; }
-
-    // 2) videos.list → statistics
-    var totals = {views:0,likes:0,comments:0};
-    for (var i=0;i<videoIds.length;i+=50){
-      var ids = videoIds.slice(i,i+50).join(',');
-      var url2 = 'https://www.googleapis.com/youtube/v3/videos?part=statistics&id='+ids+'&key='+key;
-      var r2 = UrlFetchApp.fetch(url2, {muteHttpExceptions:true});
-      if (r2.getResponseCode()!==200) { logErr_('yt.videos', new Error(r2.getContentText()), {team:team}); continue; }
-      var j2 = JSON.parse(r2.getContentText());
-      (j2.items||[]).forEach(function(v){
-        var s = v.statistics||{};
-        totals.views    += Number(s.viewCount||0);
-        totals.likes    += Number(s.likeCount||0);
-        totals.comments += Number(s.commentCount||0);
-      });
-    }
-    statsByTeam.push({team:team,views:totals.views,likes:totals.likes,comments:totals.comments});
-  });
-
-  // 3) score и запись в Leaderboard
-  // Пример: 1 балл = 1k просмотров + 5*лайков + 10*комментов (подбери формулу)
-  statsByTeam.forEach(function(s){ s.score = Math.round(s.views/1000 + 5*s.likes + 10*s.comments); });
-  statsByTeam.sort(function(a,b){ return b.score - a.score; });
-  for (var i=0;i<statsByTeam.length;i++) statsByTeam[i].rank = i+1;
-
-  var lb = ss.getSheetByName('Leaderboard') || ss.insertSheet('Leaderboard');
-  lb.clearContents(); lb.getRange(1,1,1,7).setValues([['ts','team','score','views','likes','comments','rank']]);
-  var now = new Date();
-  var vals = statsByTeam.map(function(s){ return [now, s.team, s.score, s.views, s.likes, s.comments, s.rank]; });
-  if (vals.length) lb.getRange(2,1,vals.length,7).setValues(vals);
-
-  return {ok:true, updated: vals.length, refreshed_at: now.toISOString()};
+  var sh = ss.getSheetByName('Leaderboard');
+  if (!sh){
+    sh = ss.insertSheet('Leaderboard');
+    sh.getRange(1,1,1,4).setValues([['team','views','likes','er']]);
+  }else if (sh.getLastRow() === 0){
+    sh.getRange(1,1,1,4).setValues([['team','views','likes','er']]);
+  }
+  return sh;
 }
-function extractPlaylistId_(url){
-  try{ var u = new URL(url); if (u.pathname.replace(/\/+$/,'')!=='/playlist') return ''; return u.searchParams.get('list')||''; }catch(_){ return ''; }
+
+function readRegistrationsTeams_(){
+  var ss = SS_();
+  var sh = ss.getSheetByName('Registrations');
+  if (!sh) return [];
+  var vals = sh.getDataRange().getValues();
+  if (!vals || vals.length <= 1) return [];
+  var hdr = vals[0].map(function(h){ return String(h||'').toLowerCase().trim(); });
+  var iTeam = hdr.indexOf('team');
+  if (iTeam < 0) return [];
+  var out = [];
+  for (var r=1; r<vals.length; r++){
+    var row = vals[r] || [];
+    var t = String(row[iTeam]||'').trim();
+    if (t) out.push(t);
+  }
+  // de-dupe
+  var uniq = {};
+  return out.filter(function(t){
+    var k = t.toLowerCase();
+    if (uniq[k]) return false;
+    uniq[k]=1; return true;
+  });
+}
+
+/** Пишем список команд в Leaderboard с нулями */
+function mirrorTeamsToLeaderboard_(teams){
+  var sh = ensureLbSheet_();
+  // очистим всё кроме шапки
+  var last = sh.getLastRow();
+  if (last > 1) sh.getRange(2,1,last-1,4).clearContent();
+  if (!teams.length) return 0;
+  var rows = teams.map(function(t){ return [t, 0, 0, 0]; });
+  sh.getRange(2,1,rows.length,4).setValues(rows);
+  return rows.length;
+}
+
+/** Публичный рефрешер, вызывается из http: lb_refresh */
+function handleLeaderboardRefresh_(){
+  try{
+    var teams = readRegistrationsTeams_();
+    var n = mirrorTeamsToLeaderboard_(teams);
+    return { ok:true, updated:n, refreshed_at:new Date().toISOString() };
+  }catch(err){
+    try{ logErr_('handleLeaderboardRefresh_', err, {}); }catch(_){}
+    return { ok:false, error:String(err && err.message || err) };
+  }
 }
