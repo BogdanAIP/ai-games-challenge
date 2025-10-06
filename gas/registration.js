@@ -2,7 +2,7 @@
  * Регистрация: ручная форма (register_form) и диалог (handleRegistrationDialog_).
  * Валидация YouTube-канала (channel/@handle), плейлиста/видео.
  * Требуем согласие с правилами/политикой. Всегда возвращаем verify_token.
- * Пишем в лист "Registrations" (создаём, если нет). Шапка расширена токеном.
+ * Пишем в лист "Registrations" (создаём, если нет). Шапка расширена токеном и rules_url.
  * ======================================================================= */
 
 function normalizeChannelUrl_(s){
@@ -34,6 +34,11 @@ function isValidPlaylistUrl_(u){
   if (/^https?:\/\/youtu\.be\/[A-Za-z0-9_\-]+/i.test(u)) return true;
   return false;
 }
+function isValidHttpUrl_(u){
+  u = String(u||'').trim();
+  if (!u) return true; // optional
+  return /^https?:\/\/.+/i.test(u);
+}
 function assert_(cond, msg, extra){
   if (!cond){
     var e = new Error(msg||'Validation error');
@@ -42,11 +47,11 @@ function assert_(cond, msg, extra){
   }
 }
 
-/** гарантируем наличие шапки (включая verify_token) */
+/** гарантируем наличие шапки (включая verify_token и rules_url) */
 function ensureRegSheet_(){
   var ss = SS_();
   var sh = ss.getSheetByName('Registrations');
-  var header = ['ts','id','team','channel_url','playlist_url','contact','country','city','verify_token','status','notes'];
+  var header = ['ts','id','team','channel_url','playlist_url','contact','country','city','verify_token','rules_url','status','notes'];
   if (!sh){
     sh = ss.insertSheet('Registrations');
     sh.getRange(1,1,1,header.length).setValues([header]);
@@ -56,16 +61,13 @@ function ensureRegSheet_(){
     sh.getRange(1,1,1,header.length).setValues([header]);
     return sh;
   }
-  // если verify_token отсутствует — добавим столбец и перепишем шапку
   var first = sh.getRange(1,1,1,Math.max(header.length,sh.getLastColumn())).getValues()[0];
   var cols = first.map(function(v){return String(v||'').toLowerCase().trim();});
-  if (cols.indexOf('verify_token') === -1){
-    sh.insertColumnAfter(8); // после city (колонка 8), новая станет 9-й
-    sh.getRange(1,1,1,header.length).setValues([header]);
-  }else{
-    // перепишем порядок шапки на ожидаемый (чтобы индексы совпадали)
-    sh.getRange(1,1,1,header.length).setValues([header]);
-  }
+  // добавить недостающие колонки
+  if (cols.indexOf('verify_token') === -1) sh.insertColumnAfter(8);
+  if (cols.indexOf('rules_url') === -1) sh.insertColumnAfter(9);
+  // переписать шапку по порядку
+  sh.getRange(1,1,1,header.length).setValues([header]);
   return sh;
 }
 
@@ -82,6 +84,7 @@ function handleRegistration_(data){
     var team    = String(data.team||'').trim();
     var chUrl   = normalizeChannelUrl_(data.channel_url);
     var plUrl   = String(data.playlist_url || data.youtube || '').trim();
+    var rulesUrl= String(data.rules_url||'').trim(); // optional
     var contact = String(data.contact||'').trim();
     var country = String(data.country||'').trim();
     var city    = String(data.city||'').trim();
@@ -97,17 +100,20 @@ function handleRegistration_(data){
     assert_(country, 'Missing field: country');
     assert_(acceptRules,  'Missing consent: accept_rules');
     assert_(acceptPolicy, 'Missing consent: accept_policy');
+    assert_(isValidHttpUrl_(rulesUrl), 'Invalid rules_url', { got:rulesUrl });
 
     var sh = ensureRegSheet_();
     var id = Utilities.getUuid();
     var token = makeToken_();
 
-    // Строка под ожидаемую шапку
-    var row = [new Date(), id, team, chUrl, plUrl, contact, country, city, token, 'new', ''];
+    var row = [new Date(), id, team, chUrl, plUrl, contact, country, city, token, rulesUrl, 'new', ''];
     sh.appendRow(row);
 
+    // поддерживаем видимость на лидерборде
+    try{ if (typeof handleLeaderboardRefresh_ === 'function') handleLeaderboardRefresh_(); }catch(_){}
+
     return { ok:true, id:id, team:team, channel_url:chUrl, playlist_url:plUrl,
-             country:country, city:city, verify_token:token };
+             country:country, city:city, verify_token:token, rules_url:rulesUrl };
   }catch(err){
     try{ logErr_('handleRegistration_', err, { data:data }); }catch(_){}
     var out = { ok:false, error:String(err && err.message || err) };
@@ -153,13 +159,16 @@ function handleRegistrationDialog_(data){
       case 6:
         if (!reply) return ask('Пожалуйста, укажите контакт для связи');
         state.payload.contact = reply; state.step = 7;
-        return ask('Подтвердите: ставите галочки "Я согласен с Правилами" и "Согласен с Политикой"? (да/нет)');
-      case 7: {
+        return ask('Дайте ссылку на Rules (Google Doc/Drive, GitHub) или "-" чтобы пропустить:');
+      case 7:
+        if (reply && reply !== '-') state.payload.rules_url = reply;
+        state.step = 8;
+        return ask('Подтвердите согласие с Правилами и Политикой (да/нет)');
+      case 8: {
         var yes = reply.toLowerCase();
         if (!(yes === 'да' || yes === 'yes' || yes === 'y')) {
           return ask('Нужно согласие с правилами и политикой, чтобы продолжить. Напишите "да" если согласны.');
         }
-        // финальный сабмит
         var final = handleRegistration_({
           team: state.payload.team,
           channel_url: state.payload.channel_url,
@@ -167,13 +176,14 @@ function handleRegistrationDialog_(data){
           country: state.payload.country,
           city: state.payload.city || '',
           contact: state.payload.contact,
+          rules_url: state.payload.rules_url || '',
           accept_rules: true,
           accept_policy: true
         });
         if (!final.ok) return { ok:false, error:final.error, details:final.details, state:state };
-        state.step = 8;
+        state.step = 9;
         return { ok:true, done:true, id:final.id, verify_token:final.verify_token,
-                 msg:'Заявка принята! Ваш токен: '+final.verify_token+'. Добавьте его в описание плейлиста и ответьте здесь "готово".',
+                 msg:'Заявка принята! Токен: '+final.verify_token+'. Добавьте его в описание плейлиста и ответьте здесь "готово".',
                  state:state };
       }
       default:
