@@ -1,27 +1,22 @@
 /** =========================== registration.js ===========================
  * Регистрация: ручная форма (register_form) и диалог (handleRegistrationDialog_).
- * Гибкая валидация YouTube-канала: поддерживает /channel/<ID>, /@handle, full URLs.
- * Пишем в лист "Registrations" (создаём, если нет), шапка фиксированная.
+ * Добавлено: генерация verify_token, запись в лист и возврат клиенту.
+ * Лист "Registrations" со схемой:
+ * [ts,id,team,channel_url,playlist_url,contact,country,city,status,notes,verify_token]
  * ======================================================================= */
 
 function normalizeChannelUrl_(s){
   s = String(s||'').trim();
   if (!s) return '';
-  // принять формы: @handle, /@handle, https://youtube.com/@handle
   if (/^@[\w\.\-]+$/i.test(s)) return 'https://www.youtube.com/' + s.replace(/^@/,'@');
-
-  // привести youtu.be → youtube.com
   s = s.replace(/^https?:\/\/youtu\.be\//i, 'https://www.youtube.com/');
-
-  // оставить только префикс и путь без query/fragment
   var m = s.match(/^https?:\/\/(www\.)?youtube\.com\/([^?#]+)(?:[?#].*)?$/i);
   if (m){
     var path = m[2];
-    // допускаем: channel/<ID> , @handle
     if (/^channel\/[A-Za-z0-9_\-]+$/i.test(path)) return 'https://www.youtube.com/' + path;
     if (/^@[\w\.\-]+$/i.test(path)) return 'https://www.youtube.com/' + path;
   }
-  return s; // вернём как есть (ниже проверим валидность)
+  return s;
 }
 
 function isValidChannelUrl_(u){
@@ -36,9 +31,7 @@ function isValidChannelUrl_(u){
 function isValidPlaylistUrl_(u){
   u = String(u||'').trim();
   if (!u) return false;
-  // Принимаем классическую ссылку на плейлист ?list=...
   if (/^https?:\/\/(www\.)?youtube\.com\/playlist\?list=[A-Za-z0-9_\-]+/i.test(u)) return true;
-  // Дополнительно позволим ссылку на видео (на случай тестов)
   if (/^https?:\/\/(www\.)?youtube\.com\/watch\?v=[A-Za-z0-9_\-]+/i.test(u)) return true;
   if (/^https?:\/\/youtu\.be\/[A-Za-z0-9_\-]+/i.test(u)) return true;
   return false;
@@ -57,18 +50,26 @@ function ensureRegSheet_(){
   var sh = ss.getSheetByName('Registrations');
   if (!sh){
     sh = ss.insertSheet('Registrations');
-    sh.getRange(1,1,1,10).setValues([[
-      'ts','id','team','channel_url','playlist_url','contact','country','city','status','notes'
-    ]]);
-  }else if (sh.getLastRow() === 0){
-    sh.getRange(1,1,1,10).setValues([[
-      'ts','id','team','channel_url','playlist_url','contact','country','city','status','notes'
-    ]]);
   }
+  // Всегда выставляем правильную шапку (11 колонок, добавили verify_token)
+  sh.getRange(1,1,1,11).setValues([[
+    'ts','id','team','channel_url','playlist_url','contact','country','city','status','notes','verify_token'
+  ]]);
   return sh;
 }
 
-/** Основной ручной сабмит из формы (или JSONP) */
+// простой генератор короткого токена (8-10 символов)
+function genVerifyToken_(){
+  try{
+    var raw = Utilities.getUuid().replace(/-/g,'');
+    return raw.slice(0,10);
+  }catch(_){
+    var t = Date.now().toString(36);
+    return ('v'+t).slice(0,10);
+  }
+}
+
+/** Основной ручной сабмит (форма/JSONP) */
 function handleRegistration_(data){
   try{
     data = data || {};
@@ -89,12 +90,14 @@ function handleRegistration_(data){
 
     var sh = ensureRegSheet_();
     var id = Utilities.getUuid();
+    var token = genVerifyToken_();
+
     var row = [
-      new Date(), id, team, chUrl, plUrl, contact, country, city, 'new', ''
+      new Date(), id, team, chUrl, plUrl, contact, country, city, 'new', '', token
     ];
     sh.appendRow(row);
 
-    return { ok:true, id:id, team:team, channel_url:chUrl, playlist_url:plUrl, country:country, city:city };
+    return { ok:true, id:id, team:team, channel_url:chUrl, playlist_url:plUrl, country:country, city:city, verify_token: token };
   }catch(err){
     try{ logErr_('handleRegistration_', err, { data:data }); }catch(_){}
     var out = { ok:false, error:String(err && err.message || err) };
@@ -103,14 +106,12 @@ function handleRegistration_(data){
   }
 }
 
-/** Диалоговый бот регистрации (поддержка уже существующего фронта) */
+/** Диалоговый бот регистрации */
 function handleRegistrationDialog_(data){
-  // Простейший state-machine; хранение состояния на фронте (state в payload)
   try{
     data = data || {};
     var state = data.state || { step:0, payload:{} };
     var reply = (data.reply || data.text || '').toString().trim();
-
     function ask(a){ return { ok:true, ask:a, state: state }; }
 
     switch (state.step|0){
@@ -154,7 +155,6 @@ function handleRegistrationDialog_(data){
         if (!reply) return ask('Пожалуйста, укажите контакт для связи');
         state.payload.contact = reply;
 
-        // финальный сабмит
         var final = handleRegistration_({
           team: state.payload.team,
           channel_url: state.payload.channel_url,
@@ -165,7 +165,8 @@ function handleRegistrationDialog_(data){
         });
         if (!final.ok) return { ok:false, error:final.error, details:final.details, state:state };
         state.step = 7;
-        return { ok:true, done:true, id:final.id, msg:'Заявка принята! Мы свяжемся с вами.', state:state };
+        // возвратим verify_token, чтобы человек мог вставить в описание плейлиста
+        return { ok:true, done:true, id:final.id, verify_token: final.verify_token, msg:'Заявка принята! Добавьте токен в описание плейлиста.', state:state };
 
       default:
         state = { step:0, payload:{} };
