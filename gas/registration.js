@@ -1,9 +1,8 @@
 /** =========================== registration.js ===========================
  * Регистрация: ручная форма (register_form) и диалог (handleRegistrationDialog_).
- * Проверка YouTube-канала: /channel/<ID> и /@handle, playlist/video — гибко.
- * Согласия: accept_rules + accept_policy — ОБЯЗАТЕЛЬНЫ для выдачи verify_token.
- * Пишем в "Registrations": добавлен столбец verify_token.
- * После успешной регистрации вызываем handleLeaderboardRefresh_().
+ * Валидация YouTube-канала (channel/@handle), плейлиста/видео.
+ * Требуем согласие с правилами/политикой. Всегда возвращаем verify_token.
+ * Пишем в лист "Registrations" (создаём, если нет). Шапка расширена токеном.
  * ======================================================================= */
 
 function normalizeChannelUrl_(s){
@@ -42,39 +41,52 @@ function assert_(cond, msg, extra){
     throw e;
   }
 }
+
+/** гарантируем наличие шапки (включая verify_token) */
 function ensureRegSheet_(){
   var ss = SS_();
   var sh = ss.getSheetByName('Registrations');
-  var header = ['ts','id','team','channel_url','playlist_url','contact','country','city','status','notes','verify_token'];
+  var header = ['ts','id','team','channel_url','playlist_url','contact','country','city','verify_token','status','notes'];
   if (!sh){
     sh = ss.insertSheet('Registrations');
     sh.getRange(1,1,1,header.length).setValues([header]);
+    return sh;
+  }
+  if (sh.getLastRow() === 0){
+    sh.getRange(1,1,1,header.length).setValues([header]);
+    return sh;
+  }
+  // если verify_token отсутствует — добавим столбец и перепишем шапку
+  var first = sh.getRange(1,1,1,Math.max(header.length,sh.getLastColumn())).getValues()[0];
+  var cols = first.map(function(v){return String(v||'').toLowerCase().trim();});
+  if (cols.indexOf('verify_token') === -1){
+    sh.insertColumnAfter(8); // после city (колонка 8), новая станет 9-й
+    sh.getRange(1,1,1,header.length).setValues([header]);
   }else{
-    if (sh.getLastColumn() < header.length) {
-      sh.insertColumnsAfter(sh.getLastColumn(), header.length - sh.getLastColumn());
-    }
+    // перепишем порядок шапки на ожидаемый (чтобы индексы совпадали)
     sh.getRange(1,1,1,header.length).setValues([header]);
   }
   return sh;
 }
-function genVerifyToken_(){
-  return Utilities.getUuid().replace(/-/g,'').slice(0,8).toUpperCase();
+
+/** выдаём/создаём verify_token (8-симв верхний HEX) */
+function makeToken_(){
+  var s = Utilities.getUuid().replace(/-/g,'').toUpperCase();
+  return s.slice(-8);
 }
 
-/** Ручной сабмит (join.html / JSONP) */
+/** Основной ручной сабмит из формы (или JSONP) */
 function handleRegistration_(data){
   try{
     data = data || {};
-    var team   = String(data.team||'').trim();
-    var chUrl  = normalizeChannelUrl_(data.channel_url);
-    var plUrl  = String(data.playlist_url || data.youtube || '').trim();
-    var contact= String(data.contact||'').trim();
-    var country= String(data.country||'').trim();
-    var city   = String(data.city||'').trim();
-
-    // новые обязательные флажки согласия
-    var accept_rules  = !!(data.accept_rules || data.rules || data.accept);
-    var accept_policy = !!(data.accept_policy || data.privacy || data.policy);
+    var team    = String(data.team||'').trim();
+    var chUrl   = normalizeChannelUrl_(data.channel_url);
+    var plUrl   = String(data.playlist_url || data.youtube || '').trim();
+    var contact = String(data.contact||'').trim();
+    var country = String(data.country||'').trim();
+    var city    = String(data.city||'').trim();
+    var acceptRules  = !!data.accept_rules;
+    var acceptPolicy = !!data.accept_policy;
 
     assert_(team, 'Missing field: team');
     assert_(chUrl, 'Missing field: channel_url');
@@ -83,31 +95,19 @@ function handleRegistration_(data){
     assert_(isValidPlaylistUrl_(plUrl), 'Invalid playlist_url', { got:plUrl });
     assert_(contact, 'Missing field: contact');
     assert_(country, 'Missing field: country');
-    assert_(accept_rules && accept_policy, 'Consent required: accept rules & privacy');
+    assert_(acceptRules,  'Missing consent: accept_rules');
+    assert_(acceptPolicy, 'Missing consent: accept_policy');
 
     var sh = ensureRegSheet_();
     var id = Utilities.getUuid();
-    var verify_token = genVerifyToken_();
+    var token = makeToken_();
 
-    var row = [
-      new Date(), id, team, chUrl, plUrl, contact, country, city || '', 'new', '', verify_token
-    ];
+    // Строка под ожидаемую шапку
+    var row = [new Date(), id, team, chUrl, plUrl, contact, country, city, token, 'new', ''];
     sh.appendRow(row);
 
-    try{
-      if (typeof handleLeaderboardRefresh_ === 'function'){ handleLeaderboardRefresh_(); }
-    }catch(_){}
-
-    return {
-      ok:true,
-      id:id,
-      team:team,
-      channel_url:chUrl,
-      playlist_url:plUrl,
-      country:country,
-      city:city || '',
-      verify_token: verify_token
-    };
+    return { ok:true, id:id, team:team, channel_url:chUrl, playlist_url:plUrl,
+             country:country, city:city, verify_token:token };
   }catch(err){
     try{ logErr_('handleRegistration_', err, { data:data }); }catch(_){}
     var out = { ok:false, error:String(err && err.message || err) };
@@ -116,7 +116,7 @@ function handleRegistration_(data){
   }
 }
 
-/** Диалоговый рег-бот с шагами согласия и возвратом verify_token */
+/** Диалоговый бот регистрации */
 function handleRegistrationDialog_(data){
   try{
     data = data || {};
@@ -130,44 +130,36 @@ function handleRegistrationDialog_(data){
         return ask('Как называется ваша команда?');
       case 1:
         if (!reply) return ask('Пожалуйста, укажите название команды');
-        state.payload.team = reply;
-        state.step = 2;
-        return ask('Ссылка на YouTube-канал (https://www.youtube.com/@handle или /channel/ID)?');
+        state.payload.team = reply; state.step = 2;
+        return ask('Ссылка на YouTube-канал (https://youtube.com/@handle или https://youtube.com/channel/ID)?');
       case 2: {
         var ch = normalizeChannelUrl_(reply);
         if (!isValidChannelUrl_(ch)) return ask('Не похоже на ссылку канала. Пришлите https://youtube.com/@handle или https://youtube.com/channel/ID');
-        state.payload.channel_url = ch;
-        state.step = 3;
+        state.payload.channel_url = ch; state.step = 3;
         return ask('Ссылка на плейлист сезона (или видео):');
       }
       case 3:
         if (!isValidPlaylistUrl_(reply)) return ask('Пришлите корректный плейлист (https://youtube.com/playlist?list=...) или видео (https://youtu.be/ID)');
-        state.payload.playlist_url = reply;
-        state.step = 4;
+        state.payload.playlist_url = reply; state.step = 4;
         return ask('Страна (например, RU, UA, KZ)?');
       case 4:
         if (!reply) return ask('Укажите страну (две буквы, например RU)');
-        state.payload.country = reply;
-        state.step = 5;
-        return ask('Город (опционально — можете пропустить, отправив "-")');
+        state.payload.country = reply; state.step = 5;
+        return ask('Город (опционально — можно пропустить, отправив "-")');
       case 5:
         if (reply && reply !== '-') state.payload.city = reply;
         state.step = 6;
         return ask('Контакт (email или @username):');
       case 6:
         if (!reply) return ask('Пожалуйста, укажите контакт для связи');
-        state.payload.contact = reply;
-        state.step = 7;
-        return ask('Подтверждаете правила участия? Напишите "да"');
-      case 7:
-        if (!/^да|yes|y$/i.test(reply)) return ask('Для продолжения подтвердите правила, ответьте "да"');
-        state.payload.accept_rules = true;
-        state.step = 8;
-        return ask('Подтверждаете политику и обработку данных? Напишите "да"');
-      case 8:
-        if (!/^да|yes|y$/i.test(reply)) return ask('Для продолжения подтвердите политику, ответьте "да"');
-        state.payload.accept_policy = true;
-
+        state.payload.contact = reply; state.step = 7;
+        return ask('Подтвердите: ставите галочки "Я согласен с Правилами" и "Согласен с Политикой"? (да/нет)');
+      case 7: {
+        var yes = reply.toLowerCase();
+        if (!(yes === 'да' || yes === 'yes' || yes === 'y')) {
+          return ask('Нужно согласие с правилами и политикой, чтобы продолжить. Напишите "да" если согласны.');
+        }
+        // финальный сабмит
         var final = handleRegistration_({
           team: state.payload.team,
           channel_url: state.payload.channel_url,
@@ -175,16 +167,15 @@ function handleRegistrationDialog_(data){
           country: state.payload.country,
           city: state.payload.city || '',
           contact: state.payload.contact,
-          accept_rules: state.payload.accept_rules,
-          accept_policy: state.payload.accept_policy
+          accept_rules: true,
+          accept_policy: true
         });
         if (!final.ok) return { ok:false, error:final.error, details:final.details, state:state };
-        state.step = 9;
-        return {
-          ok:true, done:true, id:final.id, verify_token: final.verify_token,
-          msg:'Заявка принята! Токен верфикации: ' + final.verify_token + '. Вставьте его в описание плейлиста.',
-          state:state
-        };
+        state.step = 8;
+        return { ok:true, done:true, id:final.id, verify_token:final.verify_token,
+                 msg:'Заявка принята! Ваш токен: '+final.verify_token+'. Добавьте его в описание плейлиста и ответьте здесь "готово".',
+                 state:state };
+      }
       default:
         state = { step:0, payload:{} };
         return ask('Начнём заново. Как называется ваша команда?');

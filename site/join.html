@@ -97,6 +97,8 @@
     <button class="btn" type="submit">Submit registration</button>
     <p id="msg" class="note"></p>
     <p id="join-status" class="note"></p>
+  <div id="join-result" class="note" style="margin-top:12px"></div>
+  <div id="verify-token" class="note" style="margin-top:8px;font-weight:600"></div>
   </form>
 <div class="consents" style="margin:12px 0">
   <label style="display:block;margin:.25rem 0"><input type="checkbox" name="accept_rules" required> I accept the <a href="./rules_full.html" target="_blank">Rules</a></label>
@@ -124,5 +126,7 @@
 </script>
 <script src="./app.join.js?v=u1759412636"></script>
 <script src="./app.regbot.js?v=reg1759394351"></script>
+<script src="./public/config.json" type="application/json" id="site-config"></script>
+<script src="./app.join.js?v=tok1"></script>
 </body>
 </html>
