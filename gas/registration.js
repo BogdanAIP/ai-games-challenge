@@ -1,108 +1,178 @@
-/** =========================== registration.gs ===========================
- * Регистрация: диалоговый ввод + прямая форма.
- * Обновлено: мягкая нормализация YouTube-канала (@handle, /channel/..., /user/..., /c/...)
- * и фиксация текста вопроса (одно @).
- * ===================================================================== */
+/** =========================== registration.js ===========================
+ * Регистрация: ручная форма (register_form) и диалог (handleRegistrationDialog_).
+ * Гибкая валидация YouTube-канала: поддерживает /channel/<ID>, /@handle, full URLs.
+ * Пишем в лист "Registrations" (создаём, если нет), шапка фиксированная.
+ * ======================================================================= */
 
-/** Диалог регистрации (бот на странице Join) */
-function handleRegistrationDialog_(data){
-  var st = (data && data.state) || { step:0, payload:{} };
-  var r  = String((data && data.reply) || '').trim();
+function normalizeChannelUrl_(s){
+  s = String(s||'').trim();
+  if (!s) return '';
+  // принять формы: @handle, /@handle, https://youtube.com/@handle
+  if (/^@[\w\.\-]+$/i.test(s)) return 'https://www.youtube.com/' + s.replace(/^@/,'@');
 
-  switch (st.step){
-    case 0:
-      st.step = 1;
-      return { ok:true, ask: 'Как называется ваша команда?', state: st };
+  // привести youtu.be → youtube.com
+  s = s.replace(/^https?:\/\/youtu\.be\//i, 'https://www.youtube.com/');
 
-    case 1:
-      st.payload.team = r;
-      st.step = 2;
-      return { ok:true, ask: 'Страна/регион?', state: st };
+  // оставить только префикс и путь без query/fragment
+  var m = s.match(/^https?:\/\/(www\.)?youtube\.com\/([^?#]+)(?:[?#].*)?$/i);
+  if (m){
+    var path = m[2];
+    // допускаем: channel/<ID> , @handle
+    if (/^channel\/[A-Za-z0-9_\-]+$/i.test(path)) return 'https://www.youtube.com/' + path;
+    if (/^@[\w\.\-]+$/i.test(path)) return 'https://www.youtube.com/' + path;
+  }
+  return s; // вернём как есть (ниже проверим валидность)
+}
 
-    case 2:
-      st.payload.country = r;
-      st.step = 3;
-      return { ok:true, ask: 'Контакт (email/telegram)?', state: st };
+function isValidChannelUrl_(u){
+  u = String(u||'').trim();
+  if (!u) return false;
+  if (/^@[\w\.\-]+$/i.test(u)) return true;
+  if (/^https?:\/\/(www\.)?youtube\.com\/channel\/[A-Za-z0-9_\-]+$/i.test(u)) return true;
+  if (/^https?:\/\/(www\.)?youtube\.com\/@[\w\.\-]+$/i.test(u)) return true;
+  return false;
+}
 
-    case 3:
-      st.payload.contact = r;
-      st.step = 4;
-      // фиксируем текст: одно @
-      return { ok:true, ask: 'Ссылка на YouTube-канал (@handle или /channel/ID)?', state: st };
+function isValidPlaylistUrl_(u){
+  u = String(u||'').trim();
+  if (!u) return false;
+  // Принимаем классическую ссылку на плейлист ?list=...
+  if (/^https?:\/\/(www\.)?youtube\.com\/playlist\?list=[A-Za-z0-9_\-]+/i.test(u)) return true;
+  // Дополнительно позволим ссылку на видео (на случай тестов)
+  if (/^https?:\/\/(www\.)?youtube\.com\/watch\?v=[A-Za-z0-9_\-]+/i.test(u)) return true;
+  if (/^https?:\/\/youtu\.be\/[A-Za-z0-9_\-]+/i.test(u)) return true;
+  return false;
+}
 
-    case 4:
-      st.payload.channel_url = r;
-      st.step = 5;
-      return { ok:true, ask: 'Ссылка на плейлист сезона (/playlist?list=...)?', state: st };
-
-    case 5:
-      st.payload.playlist_url = r;
-      st.step = 6;
-      return { ok:true, ask: 'Доп. заметки? (можно написать —)', state: st };
-
-    case 6:
-      st.payload.notes = (r && r !== '—') ? r : '';
-      var res = handleRegistration_(st.payload);
-      if (!res.ok){
-        // если ошибка — вернём что именно не понравилось (для дебага на фронте)
-        return { ok:false, error: res.error, detail: res.detail, got: res.got, normalized: res.normalized };
-      }
-      return { ok:true, done:true, message:'Готово! Регистрация принята.', token:res.token, issue_url:res.issue_url||'' };
-
-    default:
-      return { ok:false, error: 'Bad state' };
+function assert_(cond, msg, extra){
+  if (!cond){
+    var e = new Error(msg||'Validation error');
+    if (extra) e.extra = extra;
+    throw e;
   }
 }
 
-/** Прямая обработка формы регистрации (и из JSONP, и из POST) */
+function ensureRegSheet_(){
+  var ss = SS_();
+  var sh = ss.getSheetByName('Registrations');
+  if (!sh){
+    sh = ss.insertSheet('Registrations');
+    sh.getRange(1,1,1,10).setValues([[
+      'ts','id','team','channel_url','playlist_url','contact','country','city','status','notes'
+    ]]);
+  }else if (sh.getLastRow() === 0){
+    sh.getRange(1,1,1,10).setValues([[
+      'ts','id','team','channel_url','playlist_url','contact','country','city','status','notes'
+    ]]);
+  }
+  return sh;
+}
+
+/** Основной ручной сабмит из формы (или JSONP) */
 function handleRegistration_(data){
-  var req = ['team','country','contact','channel_url','playlist_url'];
-  for (var i=0;i<req.length;i++){
-    var k = req[i];
-    if (!data[k] || String(data[k]).trim() === ''){
-      return { ok:false, error:'Missing field: '+k };
+  try{
+    data = data || {};
+    var team   = String(data.team||'').trim();
+    var chUrl  = normalizeChannelUrl_(data.channel_url);
+    var plUrl  = String(data.playlist_url || data.youtube || '').trim();
+    var contact= String(data.contact||'').trim();
+    var country= String(data.country||'').trim();
+    var city   = String(data.city||'').trim();
+
+    assert_(team, 'Missing field: team');
+    assert_(chUrl, 'Missing field: channel_url');
+    assert_(isValidChannelUrl_(chUrl), 'Invalid channel_url', { got:String(data.channel_url||''), normalized:chUrl });
+    assert_(plUrl, 'Missing field: playlist_url');
+    assert_(isValidPlaylistUrl_(plUrl), 'Invalid playlist_url', { got:plUrl });
+    assert_(contact, 'Missing field: contact');
+    assert_(country, 'Missing field: country');
+
+    var sh = ensureRegSheet_();
+    var id = Utilities.getUuid();
+    var row = [
+      new Date(), id, team, chUrl, plUrl, contact, country, city, 'new', ''
+    ];
+    sh.appendRow(row);
+
+    return { ok:true, id:id, team:team, channel_url:chUrl, playlist_url:plUrl, country:country, city:city };
+  }catch(err){
+    try{ logErr_('handleRegistration_', err, { data:data }); }catch(_){}
+    var out = { ok:false, error:String(err && err.message || err) };
+    if (err && err.extra) out.details = err.extra;
+    return out;
+  }
+}
+
+/** Диалоговый бот регистрации (поддержка уже существующего фронта) */
+function handleRegistrationDialog_(data){
+  // Простейший state-machine; хранение состояния на фронте (state в payload)
+  try{
+    data = data || {};
+    var state = data.state || { step:0, payload:{} };
+    var reply = (data.reply || data.text || '').toString().trim();
+
+    function ask(a){ return { ok:true, ask:a, state: state }; }
+
+    switch (state.step|0){
+      case 0:
+        state = { step:1, payload:{} };
+        return ask('Как называется ваша команда?');
+
+      case 1:
+        if (!reply) return ask('Пожалуйста, укажите название команды');
+        state.payload.team = reply;
+        state.step = 2;
+        return ask('Ссылка на YouTube-канал (например, https://www.youtube.com/@yourhandle или https://www.youtube.com/channel/ID)?');
+
+      case 2: {
+        var ch = normalizeChannelUrl_(reply);
+        if (!isValidChannelUrl_(ch)) return ask('Не похоже на ссылку канала. Пришлите https://youtube.com/@handle или https://youtube.com/channel/ID');
+        state.payload.channel_url = ch;
+        state.step = 3;
+        return ask('Ссылка на плейлист сезона (или видео):');
+      }
+
+      case 3: {
+        if (!isValidPlaylistUrl_(reply)) return ask('Пришлите корректный плейлист (https://youtube.com/playlist?list=...) или видео (https://youtu.be/ID)');
+        state.payload.playlist_url = reply;
+        state.step = 4;
+        return ask('Страна (например, RU, UA, KZ)?');
+      }
+
+      case 4:
+        if (!reply) return ask('Укажите страну (две буквы, например RU)');
+        state.payload.country = reply;
+        state.step = 5;
+        return ask('Город (опционально — можете пропустить, отправив "-")');
+
+      case 5:
+        if (reply && reply !== '-') state.payload.city = reply;
+        state.step = 6;
+        return ask('Контакт (email или @username):');
+
+      case 6:
+        if (!reply) return ask('Пожалуйста, укажите контакт для связи');
+        state.payload.contact = reply;
+
+        // финальный сабмит
+        var final = handleRegistration_({
+          team: state.payload.team,
+          channel_url: state.payload.channel_url,
+          playlist_url: state.payload.playlist_url,
+          country: state.payload.country,
+          city: state.payload.city || '',
+          contact: state.payload.contact
+        });
+        if (!final.ok) return { ok:false, error:final.error, details:final.details, state:state };
+        state.step = 7;
+        return { ok:true, done:true, id:final.id, msg:'Заявка принята! Мы свяжемся с вами.', state:state };
+
+      default:
+        state = { step:0, payload:{} };
+        return ask('Начнём заново. Как называется ваша команда?');
     }
+  }catch(err){
+    try{ logErr_('handleRegistrationDialog_', err, { data:data }); }catch(_){}
+    return { ok:false, error:String(err && err.message || err) };
   }
-
-  var chRaw = String(data.channel_url || '');
-  var plRaw = String(data.playlist_url || '');
-
-  // «Достроим» канал до полноценного URL + нормализуем http→https и т.п.
-  var ch = normalizeUrl_( coerceYoutubeChannelUrl_(chRaw) );
-  var pl = normalizeUrl_( plRaw );
-
-  if (!isYoutubeChannelUrlLoose_(ch)){
-    return { ok:false, error:'Invalid channel_url', got: chRaw, normalized: ch };
-  }
-  if (!isYoutubePlaylistUrl_(pl)){
-    return { ok:false, error:'Invalid playlist_url', got: plRaw, normalized: pl };
-  }
-
-  var token = newToken_();
-
-  // Registrations
-  try {
-    var ss = SS_();
-    var sh = ss.getSheetByName('Registrations') || ss.insertSheet('Registrations');
-    if (sh.getLastRow()===0){
-      sh.getRange(1,1,1,8).setValues([['ts','team','country','contact','channel_url','playlist_url','issue_url','token']]);
-    }
-    sh.appendRow([ new Date(), data.team, data.country, data.contact, ch, pl, '', token ]);
-  } catch(e){
-    logErr_('reg.sheet', e);
-  }
-
-  // Users
-  try {
-    var su = SS_().getSheetByName('Users') || SS_().insertSheet('Users');
-    if (su.getLastRow()===0){
-      su.getRange(1,1,1,7).setValues([['ts','contact','team','country','channel_url','playlist_url','token']]);
-    }
-    su.appendRow([ new Date(), data.contact, data.team, data.country, ch, pl, token ]);
-  } catch(e){
-    logErr_('reg.users', e);
-  }
-
-  // (опционально GitHub Issues — если добавишь GH_TOKEN/GH_REPO, можно вернуть сюда)
-  return { ok:true, token: token };
 }
