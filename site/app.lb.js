@@ -1,24 +1,35 @@
 (function(){
   function ensureFormEndpoint(){
+    // 1) already set
     if (window.FORM_ENDPOINT && typeof window.FORM_ENDPOINT === 'string') {
       window.FORM_ENDPOINT = window.FORM_ENDPOINT.replace(/^'+|'+$/g,'').trim();
-      if (window.FORM_ENDPOINT) return;
+      if (window.FORM_ENDPOINT) return Promise.resolve();
     }
+    // 2) inline JSON (<script id="site-config">{"FORM_ENDPOINT":"..."}</script>)
     try{
-      var cfgTag = document.getElementById('site-config');
-      if (cfgTag && cfgTag.textContent){
-        var cfg = JSON.parse(cfgTag.textContent);
+      var tag = document.getElementById('site-config');
+      if (tag && tag.textContent){
+        var cfg = JSON.parse(tag.textContent);
         if (cfg && cfg.FORM_ENDPOINT){
           window.FORM_ENDPOINT = String(cfg.FORM_ENDPOINT).trim();
-          return;
+          if (window.FORM_ENDPOINT) return Promise.resolve();
         }
       }
     }catch(_){}
+    // 3) fetch ./public/config.json
+    return fetch('./public/config.json', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : {})
+      .then(cfg => {
+        if (cfg && cfg.FORM_ENDPOINT) {
+          window.FORM_ENDPOINT = String(cfg.FORM_ENDPOINT).trim();
+        }
+      })
+      .catch(()=>{});
   }
 
   function jsonp(payload, timeoutMs){
-    return new Promise(function(resolve, reject){
-      ensureFormEndpoint();
+    return new Promise(async function(resolve, reject){
+      await ensureFormEndpoint();
       var urlStr = String(window.FORM_ENDPOINT || '').trim();
       if (!/^https?:\/\//i.test(urlStr)){
         return reject(new Error('FORM_ENDPOINT not set'));
@@ -26,22 +37,16 @@
       var cb = 'cb_' + Math.random().toString(36).slice(2);
       var s = document.createElement('script');
       var u;
-      try{
-        u = new URL(urlStr);
-      }catch(e){
-        return reject(new Error('Invalid FORM_ENDPOINT'));
-      }
+      try{ u = new URL(urlStr); }catch(e){ return reject(new Error('Invalid FORM_ENDPOINT')); }
       u.searchParams.set('callback', cb);
       u.searchParams.set('payload', JSON.stringify(payload));
 
       var done = false;
-      function cleanup(){
-        try{ delete window[cb]; }catch(_){}
-        if (s && s.parentNode) s.parentNode.removeChild(s);
-      }
+      function cleanup(){ try{ delete window[cb]; }catch(_){}
+        if (s && s.parentNode) s.parentNode.removeChild(s); }
       window[cb] = function(resp){ if (done) return; done = true; cleanup(); resolve(resp); };
       s.onerror = function(){ if (done) return; done = true; cleanup(); reject(new Error('JSONP error')); };
-      var to = setTimeout(function(){ if (done) return; done = true; cleanup(); reject(new Error('JSONP timeout')); }, timeoutMs || 30000);
+      setTimeout(function(){ if (done) return; done = true; cleanup(); reject(new Error('JSONP timeout')); }, timeoutMs || 30000);
       s.src = u.toString();
       document.head.appendChild(s);
     });
@@ -82,8 +87,5 @@
     }
   }
 
-  document.addEventListener('DOMContentLoaded', function(){
-    // на странице должен быть <script id="site-config" type="application/json" src="./public/config.json">
-    loadLeaderboard();
-  });
+  document.addEventListener('DOMContentLoaded', loadLeaderboard);
 })();
