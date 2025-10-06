@@ -1,4 +1,9 @@
 function handleContent_(data){
+  // normalize aliases so front can send type/topic too
+  try{
+    if (data && !data.task && data.type)  data.task  = data.type;
+    if (data && !data.task && data.topic) data.task  = data.topic;
+  }catch(_){ /* noop */ }
   var task  = String(data?.task || '').trim(); // slogan | yt_description | logo_brief | brand_tone | music_brief
   var topic = String(data?.topic|| '').trim();
   if (!task || !topic) return {ok:false,error:'task/topic required'};

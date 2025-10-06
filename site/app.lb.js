@@ -24,7 +24,7 @@
     if (!root){ return; }
     root.textContent = 'Loading leaderboard…';
     try{
-      const res = await jsonp({ action:'content', type:'leaderboard' }, 30000);
+      const res = await jsonp({ action:'content', task:'leaderboard' }, 30000);
       if (!res || !res.ok){ root.textContent = 'Failed: ' + (res && res.error || 'server'); return; }
       const rows = res.leaderboard || res.rows || [];
       if (!rows.length){ root.textContent = 'No data yet'; return; }
