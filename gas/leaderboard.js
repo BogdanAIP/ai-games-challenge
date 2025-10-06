@@ -1,8 +1,7 @@
 /** =========================== leaderboard.js ===========================
- * Простой рефрешер: зеркалит команды из листа "Registrations" в лист
- * "Leaderboard" с нулевыми метриками (views, likes, er), чтобы фронт
- * показывал список участников сразу после регистрации.
- * Позже можно заменить сбором реальных метрик.
+ * Рефрешер: зеркалит команды из "Registrations" в "Leaderboard".
+ * ВСЕГДА перезаписывает шапку ('team','views','likes','er'), чтобы фронт
+ * и контент-ридер не спотыкались из-за старых/кривых заголовков.
  * ====================================================================== */
 
 function ensureLbSheet_(){
@@ -10,10 +9,13 @@ function ensureLbSheet_(){
   var sh = ss.getSheetByName('Leaderboard');
   if (!sh){
     sh = ss.insertSheet('Leaderboard');
-    sh.getRange(1,1,1,4).setValues([['team','views','likes','er']]);
-  }else if (sh.getLastRow() === 0){
-    sh.getRange(1,1,1,4).setValues([['team','views','likes','er']]);
   }
+  // Всегда жёстко переписываем шапку
+  sh.getRange(1,1,1,4).setValues([['team','views','likes','er']]);
+  // Числовой формат для метрик
+  try{
+    sh.getRange(2,2,Math.max(1, sh.getMaxRows()-1),3).setNumberFormat('0');
+  }catch(_){}
   return sh;
 }
 
@@ -33,11 +35,11 @@ function readRegistrationsTeams_(){
     if (t) out.push(t);
   }
   // de-dupe
-  var uniq = {};
+  var seen = {};
   return out.filter(function(t){
     var k = t.toLowerCase();
-    if (uniq[k]) return false;
-    uniq[k]=1; return true;
+    if (seen[k]) return false;
+    seen[k]=1; return true;
   });
 }
 

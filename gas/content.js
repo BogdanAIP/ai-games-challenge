@@ -62,6 +62,12 @@ function contentLeaderboard_(data){
   var iLikes = idx(['likes','l','лайки']);
   var iER    = idx(['er','engagement','engagement rate']);
 
+  // --- безопасный фолбэк по позициям, если заголовки странные ---
+  if (iTeam < 0) iTeam = 0;
+  if (iViews < 0) iViews = 1;
+  if (iLikes < 0) iLikes = 2;
+  if (iER < 0) iER = 3;
+
   var out = [];
   for (var r=1; r<vals.length; r++){
     var row = vals[r] || [];
