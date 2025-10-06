@@ -1,7 +1,8 @@
 /** =========================== leaderboard.js ===========================
  * Рефрешер: зеркалит команды из "Registrations" в "Leaderboard".
- * ВСЕГДА перезаписывает шапку ('team','views','likes','er'), чтобы фронт
- * и контент-ридер не спотыкались из-за старых/кривых заголовков.
+ * Шапку ('team','views','likes','er') всегда перезаписываем.
+ * ВАЖНО: имя команды читаем ИЗ 3-Й КОЛОНКИ (index 2), как мы и пишем при регистрации,
+ * чтобы не зависеть от того, что кто-то мог подвигать заголовки руками.
  * ====================================================================== */
 
 function ensureLbSheet_(){
@@ -19,19 +20,20 @@ function ensureLbSheet_(){
   return sh;
 }
 
+/** Читаем список команд из листа Registrations.
+ * Структура строк регистрации строго: [ts, id, team, channel_url, playlist_url, contact, country, city, status, notes]
+ * => колонка team = индекс 2. Не полагаемся на заголовки.
+ */
 function readRegistrationsTeams_(){
   var ss = SS_();
   var sh = ss.getSheetByName('Registrations');
   if (!sh) return [];
   var vals = sh.getDataRange().getValues();
   if (!vals || vals.length <= 1) return [];
-  var hdr = vals[0].map(function(h){ return String(h||'').toLowerCase().trim(); });
-  var iTeam = hdr.indexOf('team');
-  if (iTeam < 0) return [];
   var out = [];
   for (var r=1; r<vals.length; r++){
     var row = vals[r] || [];
-    var t = String(row[iTeam]||'').trim();
+    var t = String((row.length > 2 ? row[2] : '') || '').trim(); // <-- фикс: index 2
     if (t) out.push(t);
   }
   // de-dupe
