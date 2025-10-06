@@ -1,5 +1,6 @@
 (function(){
-  function ensureFormEndpoint(){
+  // ===== helpers =====
+  function readConfigIfNeeded(){
     if (window.FORM_ENDPOINT) return;
     try{
       var tag = document.getElementById('site-config');
@@ -10,7 +11,7 @@
     }catch(_){}
   }
 
-  function jsonp(payload, timeoutMs){
+  function jsonpCall(payload, timeoutMs){
     return new Promise(function(resolve, reject){
       const cb = 'cb_' + Math.random().toString(36).slice(2);
       const s  = document.createElement('script');
@@ -18,79 +19,79 @@
       u.searchParams.set('callback', cb);
       u.searchParams.set('payload', JSON.stringify(payload));
       let done = false;
-      function cleanup(){
-        try{ delete window[cb]; }catch(_){}
+      function cleanup(){ try{ delete window[cb]; }catch(_){}
         if (s && s.parentNode) s.parentNode.removeChild(s);
+        try{clearTimeout(to);}catch(_){}
       }
-      window[cb] = function(resp){ if (done) return; done = true; cleanup(); resolve(resp); };
-      s.onerror   = function(){ if (done) return; done = true; cleanup(); reject(new Error('JSONP error')); };
-      setTimeout(function(){ if (done) return; done = true; cleanup(); reject(new Error('timeout')); }, timeoutMs || 30000);
+      window[cb] = function(resp){ if (done) return; done=true; cleanup(); resolve(resp); };
+      s.onerror = function(){ if (done) return; done=true; cleanup(); reject(new Error('JSONP error')); };
+      const to = setTimeout(function(){ if (done) return; done=true; cleanup(); reject(new Error('JSONP timeout')); }, timeoutMs || 30000);
       s.src = u.toString();
       document.head.appendChild(s);
     });
   }
 
-  function qs(root, list){
-    for (var i=0; i<list.length; i++){
-      var el = root.querySelector(list[i]);
-      if (el) return el;
+  function qs(root, sel){
+    if (Array.isArray(sel)){
+      for (var i=0;i<sel.length;i++){ var el = root.querySelector(sel[i]); if (el) return el; }
+      return null;
     }
-    return null;
+    return root.querySelector(sel);
   }
 
+  // ===== main =====
   document.addEventListener('DOMContentLoaded', function(){
-    ensureFormEndpoint();
-    if (!window.FORM_ENDPOINT) {
-      console.warn('FORM_ENDPOINT not set; ensure site/public/config.json contains it');
-      return;
+    readConfigIfNeeded();
+    if (!window.FORM_ENDPOINT){
+      console.warn('FORM_ENDPOINT not set; ensure site/public/config.json or inline <script id="site-config"> exists');
     }
 
-    // Находим существующую форму: сначала #join-form, иначе первая <form>
-    var form = document.getElementById('join-form') || document.querySelector('form');
+    var form = document.getElementById('join-form') || document.querySelector('form[data-join]');
     if (!form) return;
 
-    // Пытаемся найти поля с разными именами
-    var team    = qs(form, ['[name=team]','[name=team_name]','[name=name]','[data-field=team]']);
-    var youtube = qs(form, ['[name=youtube]','[name=playlist]','[name=video]','[data-field=youtube]']);
-    var contact = qs(form, ['[name=contact]','[name=email]','[name=telegram]','[data-field=contact]']);
+    var out = document.getElementById('join-output') || (function(){
+      var d = document.createElement('div'); d.id='join-output'; d.className='note'; form.parentNode.insertBefore(d, form.nextSibling); return d;
+    })();
 
-    // Контейнер для статуса (создадим, если нет)
-    var statusBox = document.getElementById('join-result');
-    if (!statusBox){
-      statusBox = document.createElement('div');
-      statusBox.id = 'join-result';
-      statusBox.className = 'note';
-      (form.parentNode || document.body).insertBefore(statusBox, form.nextSibling);
-    }
+    form.addEventListener('submit', async function(ev){
+      ev.preventDefault();
+      out.textContent = 'Submitting…';
 
-    form.addEventListener('submit', async function(e){
-      e.preventDefault();
-      var teamVal    = team    ? String(team.value||'').trim()    : '';
-      var ytVal      = youtube ? String(youtube.value||'').trim() : '';
-      var contactVal = contact ? String(contact.value||'').trim() : '';
+      // read fields
+      var team        = qs(form, ['[name=team]','[data-field=team]']);
+      var channelUrl  = qs(form, ['[name=channel_url]','[data-field=channel_url]']);
+      var playlistUrl = qs(form, ['[name=playlist_url]','[data-field=playlist_url]','[name=youtube]']);
+      var country     = qs(form, ['[name=country]','[data-field=country]']);
+      var city        = qs(form, ['[name=city]','[data-field=city]']);
+      var contact     = qs(form, ['[name=contact]','[data-field=contact]','[name=email]','[name=telegram]']);
 
-      if (!teamVal || !ytVal || !contactVal){
-        statusBox.textContent = 'Заполните все поля (команда, YouTube, контакты).';
-        return;
-      }
+      var payload = {
+        action:       'register_form',
+        team:         team ? String(team.value||'').trim() : '',
+        channel_url:  channelUrl ? String(channelUrl.value||'').trim() : '',
+        playlist_url: playlistUrl ? String(playlistUrl.value||'').trim() : '',
+        country:      country ? String(country.value||'').trim() : '',
+        city:         city ? String(city.value||'').trim() : '',
+        contact:      contact ? String(contact.value||'').trim() : ''
+      };
 
-      statusBox.textContent = 'Отправляем заявку…';
+      // quick checks mirroring GAS
+      if (!payload.team){ out.textContent='Please enter team name'; return; }
+      if (!payload.channel_url){ out.textContent='Channel URL required'; return; }
+      if (!payload.playlist_url){ out.textContent='Season playlist URL required'; return; }
+      if (!payload.contact){ out.textContent='Contact required'; return; }
+      if (!payload.country){ out.textContent='Country (e.g. RU/UA/KZ) required'; return; }
+
       try{
-        const res = await jsonp({
-          action: 'register_form',
-          team: teamVal,
-          youtube: ytVal,
-          contact: contactVal
-        }, 30000);
-
-        if (res && res.ok){
-          statusBox.textContent = 'Заявка принята! Мы скоро свяжемся.';
-          try{ form.reset(); }catch(_){}
-        }else{
-          statusBox.textContent = 'Ошибка: ' + (res && res.error || 'неизвестно');
+        const res = await jsonpCall(payload, 30000);
+        if (!res || !res.ok){
+          out.textContent = 'Failed: ' + (res && (res.error || JSON.stringify(res)) || 'server');
+          return;
         }
+        out.innerHTML = '✅ Registration accepted. ID: <code>'+res.id+'</code>';
+        try{ form.reset(); }catch(_){}
       }catch(err){
-        statusBox.textContent = 'Сеть/JSONP: ' + err.message;
+        out.textContent = 'Network error: ' + err.message;
       }
     });
   });
