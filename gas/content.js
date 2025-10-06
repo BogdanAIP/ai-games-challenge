@@ -1,15 +1,81 @@
+/** =========================== content.js ===========================
+ * JSON/JSONP контент-эндпоинт.
+ * Принимает: data.task ИЛИ data.type ИЛИ data.topic.
+ * По умолчанию без указания — task='leaderboard'.
+ * ------------------------------------------------------------------ */
+
 function handleContent_(data){
-  // normalize aliases so front can send type/topic too
   try{
-    if (data && !data.task && data.type)  data.task  = data.type;
-    if (data && !data.task && data.topic) data.task  = data.topic;
-  }catch(_){ /* noop */ }
-  var task  = String(data?.task || '').trim(); // slogan | yt_description | logo_brief | brand_tone | music_brief
-  var topic = String(data?.topic|| '').trim();
-  if (!task || !topic) return {ok:false,error:'task/topic required'};
-  var sys = prompt_('SYS_CONTENT',
-    'You generate concise marketing assets: slogans (≤8 words), YouTube descriptions (≤150 words + 3 hashtags), logo briefs (bullets), brand tone (bullets), music brief (tempo/mood/instruments). Language=user.');
-  var user = 'Task: '+task+'\nTopic: '+topic+'\nConstraints: concise, ready-to-use.';
-  var res = askLLM_([{role:'system',content:sys},{role:'user',content:user}], {max_tokens:300});
-  return {ok:true, model:res.model, result:res.text};
+    data = data || {};
+    // Нормализуем алиасы
+    var task = (data.task || data.type || data.topic || '').toString().trim();
+    if (!task) task = 'leaderboard'; // дефолт для JSONP-виджета
+
+    switch (task) {
+      case 'leaderboard':
+        return contentLeaderboard_(data);
+
+      default:
+        return { ok:false, error:'Unknown content task: ' + task };
+    }
+  }catch(err){
+    try{ logErr_('handleContent_', err, { data:data }); }catch(_){}
+    return { ok:false, error:String(err && err.message || err) };
+  }
+}
+
+/** Выдача лидерборда из листа "Leaderboard".
+ * Пытаемся «лениво» обновить через handleLeaderboardRefresh_(), если листа нет.
+ * Возвращаем аккуратные поля: team, views, likes, er (если колонок нет — ставим пусто).
+ */
+function contentLeaderboard_(data){
+  var ss = SS_();
+  var sh = ss.getSheetByName('Leaderboard');
+
+  if (!sh && typeof handleLeaderboardRefresh_ === 'function'){
+    try{ handleLeaderboardRefresh_(); }catch(_){}
+    sh = ss.getSheetByName('Leaderboard');
+  }
+
+  if (!sh){
+    // нет данных — это не фатальная ошибка, фронт отобразит "No data yet"
+    return { ok:true, leaderboard: [] };
+  }
+
+  var vals = sh.getDataRange().getValues();
+  if (!vals || vals.length <= 1){
+    return { ok:true, leaderboard: [] };
+  }
+
+  var headers = (vals[0] || []).map(function(h){ return String(h||'').toLowerCase().trim(); });
+
+  function idx(nameArr){
+    for (var k=0;k<nameArr.length;k++){
+      var i = headers.indexOf(nameArr[k]);
+      if (i >= 0) return i;
+    }
+    return -1;
+  }
+
+  var iTeam  = idx(['team','name','команда','название','team name']);
+  var iViews = idx(['views','v','просмотры']);
+  var iLikes = idx(['likes','l','лайки']);
+  var iER    = idx(['er','engagement','engagement rate']);
+
+  var out = [];
+  for (var r=1; r<vals.length; r++){
+    var row = vals[r] || [];
+    out.push({
+      team:  iTeam  >= 0 ? row[iTeam]  : '',
+      views: iViews >= 0 ? row[iViews] : '',
+      likes: iLikes >= 0 ? row[iLikes] : '',
+      er:    iER    >= 0 ? row[iER]    : ''
+    });
+  }
+
+  // необязательный лимит
+  var limit = Number(data && data.limit) || 0;
+  if (limit > 0 && out.length > limit) out = out.slice(0, limit);
+
+  return { ok:true, leaderboard: out };
 }
