@@ -1,155 +1,97 @@
 (function(){
-  // Единая точка правды: window.FORM_ENDPOINT
-  // Если не задан извне в HTML — используем твой реальный URL как дефолт.
-  if (!window.FORM_ENDPOINT) {
-  window.FORM_ENDPOINT = "https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec";
+  function ensureFormEndpoint(){
+    if (window.FORM_ENDPOINT) return;
+    try{
+      var tag = document.getElementById('site-config');
+      if (tag && tag.textContent){
+        var cfg = JSON.parse(tag.textContent);
+        if (cfg && cfg.FORM_ENDPOINT) window.FORM_ENDPOINT = cfg.FORM_ENDPOINT;
+      }
+    }catch(_){}
   }
-  // Защитимся от случайных одинарных кавычек вокруг строки:
-  window.FORM_ENDPOINT = String(window.FORM_ENDPOINT).replace(/^'+|'+$/g, '');
+
+  function jsonp(payload, timeoutMs){
+    return new Promise(function(resolve, reject){
+      const cb = 'cb_' + Math.random().toString(36).slice(2);
+      const s  = document.createElement('script');
+      const u  = new URL(window.FORM_ENDPOINT);
+      u.searchParams.set('callback', cb);
+      u.searchParams.set('payload', JSON.stringify(payload));
+      let done = false;
+      function cleanup(){
+        try{ delete window[cb]; }catch(_){}
+        if (s && s.parentNode) s.parentNode.removeChild(s);
+      }
+      window[cb] = function(resp){ if (done) return; done = true; cleanup(); resolve(resp); };
+      s.onerror   = function(){ if (done) return; done = true; cleanup(); reject(new Error('JSONP error')); };
+      setTimeout(function(){ if (done) return; done = true; cleanup(); reject(new Error('timeout')); }, timeoutMs || 30000);
+      s.src = u.toString();
+      document.head.appendChild(s);
+    });
+  }
+
+  function qs(root, list){
+    for (var i=0; i<list.length; i++){
+      var el = root.querySelector(list[i]);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    ensureFormEndpoint();
+    if (!window.FORM_ENDPOINT) {
+      console.warn('FORM_ENDPOINT not set; ensure site/public/config.json contains it');
+      return;
+    }
+
+    // Находим существующую форму: сначала #join-form, иначе первая <form>
+    var form = document.getElementById('join-form') || document.querySelector('form');
+    if (!form) return;
+
+    // Пытаемся найти поля с разными именами
+    var team    = qs(form, ['[name=team]','[name=team_name]','[name=name]','[data-field=team]']);
+    var youtube = qs(form, ['[name=youtube]','[name=playlist]','[name=video]','[data-field=youtube]']);
+    var contact = qs(form, ['[name=contact]','[name=email]','[name=telegram]','[data-field=contact]']);
+
+    // Контейнер для статуса (создадим, если нет)
+    var statusBox = document.getElementById('join-result');
+    if (!statusBox){
+      statusBox = document.createElement('div');
+      statusBox.id = 'join-result';
+      statusBox.className = 'note';
+      (form.parentNode || document.body).insertBefore(statusBox, form.nextSibling);
+    }
+
+    form.addEventListener('submit', async function(e){
+      e.preventDefault();
+      var teamVal    = team    ? String(team.value||'').trim()    : '';
+      var ytVal      = youtube ? String(youtube.value||'').trim() : '';
+      var contactVal = contact ? String(contact.value||'').trim() : '';
+
+      if (!teamVal || !ytVal || !contactVal){
+        statusBox.textContent = 'Заполните все поля (команда, YouTube, контакты).';
+        return;
+      }
+
+      statusBox.textContent = 'Отправляем заявку…';
+      try{
+        const res = await jsonp({
+          action: 'register_form',
+          team: teamVal,
+          youtube: ytVal,
+          contact: contactVal
+        }, 30000);
+
+        if (res && res.ok){
+          statusBox.textContent = 'Заявка принята! Мы скоро свяжемся.';
+          try{ form.reset(); }catch(_){}
+        }else{
+          statusBox.textContent = 'Ошибка: ' + (res && res.error || 'неизвестно');
+        }
+      }catch(err){
+        statusBox.textContent = 'Сеть/JSONP: ' + err.message;
+      }
+    });
+  });
 })();
-
-/* Join form (JSONP) — без CORS / preflight.
- * Отправляем: team, country, contact, channel_url, playlist_url, notes.
- * ФАЙЛ через JSONP НЕ отправляем (слишком большой для query-string).
- */
-function $(sel){ return document.querySelector(sel); }
-
-function setMsg(text, kind){
-  const el = $('#msg');
-  if (!el) return;
-  el.textContent = text;
-  el.className = 'note ' + (kind || '');
-}
-
-function genToken(){
-  const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
-  const ts  = Date.now().toString(36).toUpperCase();
-  return `AIGC-${rnd}-${ts}`;
-}
-
-function jsonpCall(payload, timeoutMs){
-  return new Promise(function(resolve, reject){
-    const cbName = 'cb_' + Math.random().toString(36).slice(2);
-    const s = document.createElement('script');
-    const url = new URL(window.FORM_ENDPOINT);
-    url.searchParams.set('callback', cbName);
-    url.searchParams.set('payload', JSON.stringify(payload));
-
-    let done = false;
-    window[cbName] = function(resp){
-      if (done) return;
-      done = true;
-      resolve(resp);
-      cleanup();
-    };
-
-    function cleanup(){
-      delete window[cbName];
-      if (s && s.parentNode) s.parentNode.removeChild(s);
-    }
-
-    s.onerror = function(){
-      if (done) return;
-      done = true;
-      reject(new Error('JSONP load error'));
-      cleanup();
-    };
-
-    document.head.appendChild(s);
-
-    const to = setTimeout(function(){
-      if (done) return;
-      done = true;
-      reject(new Error('JSONP timeout'));
-      cleanup();
-    }, timeoutMs || 20000);
-
-    const oldCB = window[cbName];
-    window[cbName] = function(x){
-      clearTimeout(to);
-      return oldCB(x);
-    };
-    s.src = url.toString();
-  });
-}
-
-async function mintToken(){
-  setMsg('Minting token…', 'info');
-  try{
-    const data = await jsonpCall({ action:'mint' });
-    if (!data || !data.ok || !data.token) throw new Error((data && data.error) || 'mint failed');
-    const t = $('#token'); if (t) t.value = data.token;
-    setMsg('Token generated.', 'ok');
-  }catch(err){
-    setMsg('Mint error: ' + err.message, 'err');
-  }
-}
-
-async function handleSubmit(ev){
-  ev.preventDefault();
-  const form = ev.target;
-  const submitBtn = form.querySelector('button[type="submit"]');
-  submitBtn && (submitBtn.disabled = true);
-  setMsg('Submitting…', 'info');
-
-  try{
-    const fd = new FormData(form);
-    const required = ['team','country','contact','channel_url','playlist_url'];
-    for (const k of required){
-      const v = (fd.get(k) || '').toString().trim();
-      if (!v){ setMsg('Please fill all required fields.', 'err'); submitBtn && (submitBtn.disabled = false); return; }
-    }
-
-    // JSONP-вариант: файл не шлём (слишком велик для URL). Просто предупредим.
-    const file = fd.get('rules_file');
-    if (file && file.size){
-      setMsg('Note: rules file is not sent via web form (JSONP). We will request it later.', 'info');
-    }
-
-    const payload = {
-      action:       'register_form',            // ВАЖНО: для JSONP-роутера в GAS
-      team:         fd.get('team'),
-      country:      fd.get('country'),
-      contact:      fd.get('contact'),
-      channel_url:  fd.get('channel_url'),
-      playlist_url: fd.get('playlist_url'),
-      notes:        fd.get('notes') || ''
-      // token (из input) не отправляем умышленно — сервер генерирует свой
-    };
-
-    const data = await jsonpCall(payload);
-    if (!data || !data.ok) throw new Error((data && data.error) || 'Server error');
-
-    // Успех
-    const info = [];
-    if (data.issue_number) info.push('#'+data.issue_number);
-    if (data.issue_url)    info.push(data.issue_url);
-    setMsg('✅ Submitted. ' + (info.length ? info.join(' — ') : 'Registration accepted.'), 'ok');
-
-    // Обновить локальный токен для UX (серверный уже сохранён в таблице)
-    form.reset();
-    const t = $('#token'); if (t) t.value = genToken();
-
-  }catch(err){
-    setMsg('Submission error: ' + err.message, 'err');
-  }finally{
-    submitBtn && (submitBtn.disabled = false);
-  }
-}
-
-function boot(){
-  // Автогенерим UX-токен
-  const t = $('#token');
-  if (t && !t.value) t.value = genToken();
-
-  // Кнопка Generate — локальная генерация (быстрее и без запроса)
-  const b = document.getElementById('genTokenBtn');
-  if (b) b.addEventListener('click', function(){
-    const t=$('#token'); t.value=genToken(); t.focus(); t.select();
-  });
-
-  const f = document.getElementById('joinForm');
-  if (f) f.addEventListener('submit', handleSubmit);
-}
-
-document.addEventListener('DOMContentLoaded', boot);
