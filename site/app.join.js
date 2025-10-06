@@ -1,90 +1,86 @@
 (function(){
-  function qs(root, selArr){ for (var i=0;i<selArr.length;i++){ var el = root.querySelector(selArr[i]); if (el) return el; } return null; }
+  function qs(root, sels){ for (var i=0;i<sels.length;i++){ var el = root.querySelector(sels[i]); if (el) return el; } return null; }
 
-  function ensureFormEndpoint(){
-    if (window.FORM_ENDPOINT && typeof window.FORM_ENDPOINT === 'string') {
-      window.FORM_ENDPOINT = window.FORM_ENDPOINT.replace(/^'+|'+$/g,'').trim();
-      if (window.FORM_ENDPOINT) return Promise.resolve();
-    }
+  function ensureEndpoint(){
+    if (window.FORM_ENDPOINT) return;
     try{
-      var tag = document.getElementById('site-config');
-      if (tag && tag.textContent){
-        var cfg = JSON.parse(tag.textContent);
-        if (cfg && cfg.FORM_ENDPOINT){
-          window.FORM_ENDPOINT = String(cfg.FORM_ENDPOINT).trim();
-          if (window.FORM_ENDPOINT) return Promise.resolve();
-        }
+      var cfgTag = document.getElementById('site-config');
+      if (cfgTag && cfgTag.textContent){
+        var cfg = JSON.parse(cfgTag.textContent);
+        if (cfg && cfg.FORM_ENDPOINT) window.FORM_ENDPOINT = cfg.FORM_ENDPOINT;
       }
     }catch(_){}
-    return fetch('./public/config.json', { cache:'no-store' })
-      .then(r => r.ok ? r.json() : {})
-      .then(cfg => { if (cfg && cfg.FORM_ENDPOINT) window.FORM_ENDPOINT = String(cfg.FORM_ENDPOINT).trim(); })
-      .catch(()=>{});
   }
 
-  async function submitJoin(ev){
-    ev.preventDefault();
-    await ensureFormEndpoint();
-
-    var form = ev.currentTarget;
-    var team    = qs(form, ['[name=team]','[data-field=team]']);
-    var country = qs(form, ['[name=country]','[data-field=country]']);
-    var contact = qs(form, ['[name=contact]','[name=email]','[name=telegram]','[data-field=contact]']);
-    var chUrl   = qs(form, ['[name=channel_url]','[data-field=channel_url]']);
-    var plUrl   = qs(form, ['[name=playlist_url]','[data-field=playlist_url]']);
-
-    var teamVal = team ? String(team.value||'').trim() : '';
-    var countryVal = country ? String(country.value||'').trim() : '';
-    var contactVal = contact ? String(contact.value||'').trim() : '';
-    var chVal = chUrl ? String(chUrl.value||'').trim() : '';
-    var plVal = plUrl ? String(plUrl.value||'').trim() : '';
-
-    var out = document.getElementById('join-feedback'); if (out) out.textContent = '';
-
-    if (!window.FORM_ENDPOINT){ if (out) out.textContent = 'Config error: FORM_ENDPOINT is not set'; return; }
-    if (!teamVal || !countryVal || !contactVal || !chVal || !plVal){ if (out) out.textContent = 'Please fill all required fields'; return; }
-
-    var cb = 'cb_' + Math.random().toString(36).slice(2);
-    var urlStr = String(window.FORM_ENDPOINT || '').trim();
-
-    try{
-      if (!/^https?:\/\//i.test(urlStr)) throw new Error('Invalid endpoint');
-      var u = new URL(urlStr);
-      var payload = {
-        action: 'register_form',
-        team: teamVal,
-        channel_url: chVal,
-        playlist_url: plVal,
-        contact: contactVal,
-        country: countryVal,
-        city: qs(form, ['[name=city]','[data-field=city]']) ? String(qs(form, ['[name=city]','[data-field=city]']).value||'').trim() : ''
-      };
-      u.searchParams.set('callback', cb);
-      u.searchParams.set('payload', JSON.stringify(payload));
-
-      window[cb] = function(resp){
-        try{ delete window[cb]; }catch(_){}
-        if (!out) return;
-        if (resp && resp.ok){
-          var token = resp.verify_token ? ('\nVerification token: ' + resp.verify_token) : '';
-          out.textContent = 'OK! Application submitted.' + token + '\nAdd the token into your season playlist description.';
-        } else {
-          out.textContent = 'Failed: ' + (resp && (resp.error||resp.message) || 'server');
-        }
-      };
-
-      var s = document.createElement('script');
-      s.onerror = function(){ try{ delete window[cb]; }catch(_){}
-        if (out) out.textContent = 'Network error'; };
-      s.src = u.toString();
+  async function jsonpCall(payload, timeoutMs){
+    return new Promise(function(resolve, reject){
+      const cb = 'cb_' + Math.random().toString(36).slice(2);
+      const url = new URL(window.FORM_ENDPOINT);
+      url.searchParams.set('callback', cb);
+      url.searchParams.set('payload', JSON.stringify(payload));
+      let done=false;
+      window[cb] = function(resp){ if(done) return; done=true; cleanup(); resolve(resp); };
+      const s = document.createElement('script');
+      s.onerror = function(){ if(done) return; done=true; cleanup(); reject(new Error('JSONP error')); };
+      const to = setTimeout(function(){ if(done) return; done=true; cleanup(); reject(new Error('JSONP timeout')); }, timeoutMs||30000);
+      function cleanup(){ try{clearTimeout(to);}catch(_){}
+        try{delete window[cb];}catch(_){}
+        if (s && s.parentNode) s.parentNode.removeChild(s);
+      }
+      s.src = url.toString();
       document.head.appendChild(s);
-    }catch(err){
-      if (out) out.textContent = 'Invalid FORM_ENDPOINT: ' + (err && err.message || err);
-    }
+    });
   }
 
   document.addEventListener('DOMContentLoaded', function(){
-    var f = document.querySelector('form[data-join], form#join-form');
-    if (f){ f.addEventListener('submit', submitJoin, false); }
+    ensureEndpoint();
+    const form = document.querySelector('form');
+    if (!form) return;
+
+    const $token = document.getElementById('verify-token');
+
+    form.addEventListener('submit', async function(ev){
+      ev.preventDefault();
+      if (!window.FORM_ENDPOINT){
+        alert('FORM_ENDPOINT not set'); return;
+      }
+      const team = qs(form, ['[name=team]'])?.value?.trim() || '';
+      const channel_url = qs(form, ['[name=channel_url]'])?.value?.trim() || '';
+      const playlist_url = qs(form, ['[name=playlist_url]'])?.value?.trim() || '';
+      const contact = qs(form, ['[name=contact]'])?.value?.trim() || '';
+      const country = qs(form, ['[name=country]'])?.value?.trim() || '';
+      const city = qs(form, ['[name=city]'])?.value?.trim() || '';
+      const accept_rules  = !!qs(form, ['[name=accept_rules]'])?.checked;
+      const accept_policy = !!qs(form, ['[name=accept_policy]'])?.checked;
+
+      if (!accept_rules || !accept_policy){
+        alert('Please accept the Rules and Privacy to proceed.');
+        return;
+      }
+
+      try{
+        const resp = await jsonpCall({
+          action: 'register_form',
+          team, channel_url, playlist_url, contact, country, city,
+          accept_rules, accept_policy
+        }, 45000);
+
+        if (!resp || !resp.ok){
+          const err = (resp && (resp.error || resp.msg)) || 'Registration failed';
+          alert(err);
+          if ($token){ $token.style.display='block'; $token.textContent = 'Error: ' + err; }
+          return;
+        }
+        // success
+        const tok = resp.verify_token || '';
+        const html = tok
+          ? ('Verification token: ' + tok + '. Add it to your season playlist description/title and keep it there.')
+          : 'Registered. (No token returned)';
+        if ($token){ $token.style.display='block'; $token.textContent = html; }
+        try { form.reset(); } catch(_){}
+      }catch(e){
+        alert('Network error: '+ e.message);
+      }
+    });
   });
 })();
