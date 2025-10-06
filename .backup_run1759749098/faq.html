@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AI Games Challenge — FAQ</title>
+<link rel="stylesheet" href="./styles.css"/>
+<style>
+.faq-ai .row{display:grid;gap:8px;grid-template-columns:1fr auto}
+.faq-ai input{padding:.75rem;border:1px solid #e1e3e6;border-radius:10px;background:#111;color:#fff}
+.faq-ai .btn{padding:.6rem 1rem;border-radius:12px;border:none;background:#111;color:#fff;cursor:pointer}
+.faq-ai .btn:hover{opacity:.9}
+#faq-out{white-space:pre-wrap;border:1px dashed #2b2f31;border-radius:10px;padding:.75rem;min-height:2.5rem}
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1 class="notranslate" translate="no">AI Games Challenge</h1>
+  <p class="subtitle">Frequently Asked Questions</p>
+  <div class="cta-row"><a class="btn" href="./index.html">← Back</a></div>
+</header>
+
+<main class="section prose">
+  <h2>Who can join?</h2>
+  <p>Anyone. Solo or team. You only need a public YouTube channel and a season playlist.</p>
+
+  <h2>Do I need a new channel?</h2>
+  <p>No. You can use your existing channel and add a dedicated season playlist.</p>
+
+  <h2>Which metrics are counted?</h2>
+  <p>Views and likes from videos in your season playlist; ER is capped. See <a href="./leaderboard.html">Leaderboard & Scoring</a>.</p>
+
+  <h2>Other social apps?</h2>
+  <p>Use any social platform to grow your audience, but the leaderboard relies on YouTube playlist only.</p>
+
+  <h2>How do you prevent cheating?</h2>
+  <p>We count only post-registration uploads, cap engagement, and review suspicious spikes.</p>
+
+  <section class="faq-ai section">
+    <h2>Ask the AI assistant</h2>
+    <div class="row" style="max-width:820px">
+      <input id="faq-input" placeholder="Спроси про правила, этапы, регистрацию…"/>
+      <button id="faq-ask" class="btn">Ask</button>
+    </div>
+    <div id="faq-out" class="note" style="margin-top:8px"></div>
+  </section>
+</main>
+
+<footer class="footer"><p>© AI Games Challenge</p></footer>
+
+<script>window.FORM_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec';</script>
+<script src="./app.faq.js?v=u1759412636"></script>
+</body>
+</html>
