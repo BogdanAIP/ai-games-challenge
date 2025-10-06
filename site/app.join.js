@@ -35,7 +35,6 @@
 
     const out = document.getElementById('join-result');
     const tok = document.getElementById('token');
-    const tokLbl = document.getElementById('verify-token');
     const copyBtn = document.getElementById('copyTokenBtn');
 
     if(copyBtn){
@@ -55,7 +54,6 @@
       const contact  = qs(form,'[name=contact]')?.value?.trim() || '';
       const chUrl    = qs(form,'[name=channel_url]')?.value?.trim() || '';
       const plUrl    = qs(form,'[name=playlist_url]')?.value?.trim() || '';
-      const rulesUrl = qs(form,'[name=rules_url]')?.value?.trim() || '';
       const city     = qs(form,'[name=city]')?.value?.trim() || '';
       const accR     = qs(form,'[name=accept_rules]')?.checked || false;
       const accP     = qs(form,'[name=accept_policy]')?.checked || false;
@@ -76,7 +74,6 @@
           team: team,
           channel_url: chUrl,
           playlist_url: plUrl,
-          rules_url: rulesUrl || '',
           contact: contact,
           country: country,
           city: city,
@@ -91,9 +88,8 @@
 
         const token = res.verify_token || '';
         if(tok) tok.value = token;
-        if(tokLbl) tokLbl.textContent = token ? ('Your verification token: ' + token + ' (copied)') : 'Registration received';
         if(token){ try{ navigator.clipboard.writeText(token); }catch(_){ } }
-        if(out) out.textContent='Success! Paste the token into your playlist description.';
+        if(out) out.textContent='Success!';
 
       }catch(e){
         if(out) out.textContent='Network error: ' + e.message;

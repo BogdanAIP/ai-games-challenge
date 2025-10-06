@@ -32,7 +32,7 @@
 </header>
 
 <main class="join-wrap">
-  <p>Register your team, link your YouTube channel & season playlist, and provide a public <b>Rules URL</b> (Google Doc/Drive, GitHub, etc.). We’ll verify and post a welcome note in our Telegram.</p>
+  <p>Register your team, link your YouTube channel & season playlist. We’ll verify and post a welcome note in our Telegram.</p>
 
   <form id="join-form" data-join>
     <label>Team name
@@ -56,17 +56,12 @@
       <input name="playlist_url" type="url" required placeholder="https://www.youtube.com/playlist?list=PLxxxx">
     </label>
 
-    <label>Rules URL (Google Doc/Drive, GitHub, etc.)
-      <input name="rules_url" type="url" placeholder="https://docs.google.com/document/d/..." >
-    </label>
-
     <div class="token-row">
-      <label>Verification token (we generate it; paste into your playlist description)
+      <label>Verification token
         <input id="token" name="token" placeholder="will appear after submit" readonly>
       </label>
       <button class="btn btn-secondary" type="button" id="copyTokenBtn" title="Copy token">Copy</button>
     </div>
-    <p class="note">We verify the token by reading your playlist description after submission.</p>
 
     <label>Notes (optional)
       <textarea name="notes" rows="4" placeholder="Anything else we should know?"></textarea>
@@ -85,7 +80,6 @@
 
     <button class="btn" type="submit">Submit registration</button>
     <p id="join-result" class="note" style="margin-top:12px"></p>
-    <p id="verify-token" class="note" style="margin-top:8px;font-weight:600"></p>
   </form>
 
   <!-- Dialog bot -->
@@ -103,7 +97,7 @@
 
 <!-- GAS endpoint + scripts -->
 <script>window.FORM_ENDPOINT=(function(){try{const t=document.getElementById('site-config');if(t&&t.textContent){const c=JSON.parse(t.textContent);if(c&&c.FORM_ENDPOINT)return c.FORM_ENDPOINT;}}catch(e){}return 'https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec';})();</script>
-<script src="./app.join.js?v=clean1"></script>
-<script src="./app.regbot.js?v=clean1"></script>
+<script src="./app.join.js?v=trim2"></script>
+<script src="./app.regbot.js?v=trim2"></script>
 </body>
 </html>
