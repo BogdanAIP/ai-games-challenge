@@ -37,8 +37,8 @@ function handleFaq_(data){
       ],
       // управляется через Script Properties, но поставим адекватные дефолты
       model:  (cfg_('OPENROUTER_MODELS','deepseek/deepseek-r1:free')||'').split(/\s*,\s*/)[0],
-      max_tokens: Number(cfg_('FAQ_MAX_TOKENS', '700')) || 700,
-      temperature: Number(cfg_('FAQ_T', '0.3')) || 0.3
+      max_tokens: Number(cfg_('FAQ_MAX_TOKENS', cfg_('MAX_TOKENS','700'))) || 700,
+      temperature: Number(cfg_('FAQ_T', cfg_('TEMPERATURE','0.3'))) || 0.3
     });
 
     var out = (resp && resp.text || '').trim();
