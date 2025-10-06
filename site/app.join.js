@@ -61,8 +61,8 @@
       const cntVal  = contact ? String(contact.value||'').trim() : '';
       const ctryVal = country ? String(country.value||'').trim() : '';
       const cityVal = city ? String(city.value||'').trim() : '';
-      const rOK     = accR ? accR.checked : false;
-      const pOK     = accP ? accP.checked : false;
+      const rOK     = !!(accR && accR.checked);
+      const pOK     = !!(accP && accP.checked);
 
       if (!teamVal || !chVal || !plVal || !cntVal || !ctryVal){
         if (out) out.textContent = 'Please fill all required fields';
@@ -101,7 +101,7 @@
             }catch(_){}
           }
         }
-        if (out) out.textContent = 'Success! Please paste the token into your playlist description.';
+        if (out) out.textContent = 'Success! Paste the token into your season playlist description.';
       }catch(err){
         if (out) out.textContent = 'Network error: ' + err.message;
       }

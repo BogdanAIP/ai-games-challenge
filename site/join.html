@@ -99,10 +99,20 @@
     <p id="join-status" class="note"></p>
   <div id="join-result" class="note" style="margin-top:12px"></div>
   <div id="verify-token" class="note" style="margin-top:8px;font-weight:600"></div>
+  <div class="consents" style="margin-top:12px">
+    <label style="display:flex;gap:.6rem;align-items:center;margin:.25rem 0;">
+      <input type="checkbox" name="accept_rules" required>
+      <span>I agree to the <a href="./rules_full.html" target="_blank" rel="noopener">Rules</a></span>
+    </label>
+    <label style="display:flex;gap:.6rem;align-items:center;margin:.25rem 0;">
+      <input type="checkbox" name="accept_policy" required>
+      <span>I agree to the Privacy Policy</span>
+    </label>
+  </div>
+  <div id="join-result" class="note" style="margin-top:12px"></div>
+  <div id="verify-token" class="note" style="margin-top:8px;font-weight:600"></div>
   </form>
 <div class="consents" style="margin:12px 0">
-  <label style="display:block;margin:.25rem 0"><input type="checkbox" name="accept_rules" required> I accept the <a href="./rules_full.html" target="_blank">Rules</a></label>
-  <label style="display:block;margin:.25rem 0"><input type="checkbox" name="accept_policy" required> I accept the Privacy/Policy</label>
 </div>
 <div id="verify-token" class="note" style="margin-top:12px;display:none"></div>
 
@@ -128,5 +138,7 @@
 <script src="./app.regbot.js?v=reg1759394351"></script>
 <script src="./public/config.json" type="application/json" id="site-config"></script>
 <script src="./app.join.js?v=tok1"></script>
+<script src="./public/config.json" type="application/json" id="site-config"></script>
+<script src="./app.join.js?v=jf1"></script>
 </body>
 </html>
