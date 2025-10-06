@@ -56,6 +56,16 @@ function doGet(e){
         resp = handleRegistration_(data);
         break;
 
+      // === ДОБАВЛЕНО: JSONP контент/лидерборд ===
+      case 'content':
+        resp = handleContent_(data);
+        break;
+
+      // === ДОБАВЛЕНО: JSONP форс-обновление лидерборда ===
+      case 'lb_refresh':
+        resp = handleLeaderboardRefresh_();
+        break;
+
       // ---------- Админ JSONP-действия (по секрету) ----------
       case 'init_project': {
         var secret = PropertiesService.getScriptProperties().getProperty('SEED_SECRET') || '';
