@@ -1,30 +1,26 @@
-<!doctype html><html lang="en"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>AI Games Challenge — Leaderboard & Scoring</title>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AI Games Challenge — Leaderboard</title>
 <link rel="stylesheet" href="./styles.css"/>
-</head><body>
+</head>
+<body>
 <header class="hero">
-  <h1 class="notranslate" translate="no">AI Games Challenge</h1>
-  <p class="subtitle">Leaderboard & Scoring</p>
+  <h1 class="notranslate" translate="no">Leaderboard</h1>
   <div class="cta-row"><a class="btn" href="./index.html">← Back</a></div>
 </header>
-<main class="section prose">
-  <h2>Leaderboard (updated daily)</h2>
-  <div id="full-board" class="mini-board"><p class="muted">Loading…</p></div>
 
-  <h2 style="margin-top:24px">Scoring (last 30 days)</h2>
-  <ul>
-    <li><code>V30</code> — total views in your season playlist</li>
-    <li><code>L30</code> — total likes in your season playlist</li>
-    <li><code>ER</code> — engagement rate = <code>L30 / max(V30,1)</code>, cap 5%</li>
-  </ul>
-  <p><strong>Robust scaling</strong> to reduce outliers:</p>
-  <pre>zV = (V30 − median(V30)) / IQR(V30)
-zL = (L30 − median(L30)) / IQR(L30)</pre>
-  <p><strong>Score:</strong> <code>0.5·zV + 0.3·zL + 0.2·norm(ER)</code></p>
-  <p class="muted">Weights and caps may be tuned during pilot seasons.</p>
+<main class="section prose" style="max-width:900px">
+  <p>Live data is pulled from Google Apps Script.</p>
+  <div id="lb-root" class="note" style="min-height:3rem"></div>
 </main>
+
 <footer class="footer"><p>© AI Games Challenge</p></footer>
-<script src="./app.js" defer></script>
-<script>document.addEventListener('DOMContentLoaded',()=>{ if(window.loadFullBoard) loadFullBoard(); });</script>
-</body></html>
+
+<!-- если на странице нет window.FORM_ENDPOINT — подхватим из site/public/config.json -->
+<script src="./public/config.json" type="application/json" id="site-config"></script>
+<script src="./app.lb.js?v=run1759749098"></script>
+</body>
+</html>
