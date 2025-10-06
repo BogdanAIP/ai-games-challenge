@@ -37,6 +37,12 @@ function contentLeaderboard_(data){
     sh = ss.getSheetByName('Leaderboard');
   }
 
+  // Если лист существует, но пуст — попробуем рефреш и перечитать
+  if (sh && sh.getLastRow() <= 1 && typeof handleLeaderboardRefresh_ === 'function') {
+    try{ handleLeaderboardRefresh_(); }catch(_){}
+    sh = ss.getSheetByName('Leaderboard');
+  }
+  
   if (!sh){
     // нет данных — это не фатальная ошибка, фронт отобразит "No data yet"
     return { ok:true, leaderboard: [] };

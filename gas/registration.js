@@ -1,8 +1,8 @@
 /** =========================== registration.js ===========================
  * Регистрация: ручная форма (register_form) и диалог (handleRegistrationDialog_).
- * Добавлено: генерация verify_token, запись в лист и возврат клиенту.
- * Лист "Registrations" со схемой:
- * [ts,id,team,channel_url,playlist_url,contact,country,city,status,notes,verify_token]
+ * Гибкая валидация YouTube-канала: /channel/<ID>, /@handle, full URLs.
+ * Пишем в лист "Registrations". Добавлен verify_token (11-я колонка).
+ * После успешной регистрации вызываем handleLeaderboardRefresh_() (если есть).
  * ======================================================================= */
 
 function normalizeChannelUrl_(s){
@@ -48,28 +48,30 @@ function assert_(cond, msg, extra){
 function ensureRegSheet_(){
   var ss = SS_();
   var sh = ss.getSheetByName('Registrations');
+  // Шапка из 11 колонок: добавили verify_token
+  var header = ['ts','id','team','channel_url','playlist_url','contact','country','city','status','notes','verify_token'];
   if (!sh){
     sh = ss.insertSheet('Registrations');
+    sh.getRange(1,1,1,header.length).setValues([header]);
+  }else if (sh.getLastRow() === 0){
+    sh.getRange(1,1,1,header.length).setValues([header]);
+  }else{
+    // Если лист уже был, проверим ширину и, при необходимости, расширим до 11 колонок
+    if (sh.getLastColumn() < header.length) {
+      sh.insertColumnsAfter(sh.getLastColumn(), header.length - sh.getLastColumn());
+    }
+    // Пере-пишем первый ряд шапкой, чтобы гарантировать наличие verify_token
+    sh.getRange(1,1,1,header.length).setValues([header]);
   }
-  // Всегда выставляем правильную шапку (11 колонок, добавили verify_token)
-  sh.getRange(1,1,1,11).setValues([[
-    'ts','id','team','channel_url','playlist_url','contact','country','city','status','notes','verify_token'
-  ]]);
   return sh;
 }
 
-// простой генератор короткого токена (8-10 символов)
 function genVerifyToken_(){
-  try{
-    var raw = Utilities.getUuid().replace(/-/g,'');
-    return raw.slice(0,10);
-  }catch(_){
-    var t = Date.now().toString(36);
-    return ('v'+t).slice(0,10);
-  }
+  // короткий, удобный для вставки токен; достаточно уникален для нашей цели
+  return Utilities.getUuid().replace(/-/g,'').slice(0,8).toUpperCase();
 }
 
-/** Основной ручной сабмит (форма/JSONP) */
+/** Основной ручной сабмит из формы (или JSONP) */
 function handleRegistration_(data){
   try{
     data = data || {};
@@ -90,14 +92,30 @@ function handleRegistration_(data){
 
     var sh = ensureRegSheet_();
     var id = Utilities.getUuid();
-    var token = genVerifyToken_();
+    var verify_token = genVerifyToken_();
 
     var row = [
-      new Date(), id, team, chUrl, plUrl, contact, country, city, 'new', '', token
+      new Date(), id, team, chUrl, plUrl, contact, country, city || '', 'new', '', verify_token
     ];
     sh.appendRow(row);
 
-    return { ok:true, id:id, team:team, channel_url:chUrl, playlist_url:plUrl, country:country, city:city, verify_token: token };
+    // Лёгкий авто-рефреш лидерборда (если функция определена)
+    try{
+      if (typeof handleLeaderboardRefresh_ === 'function'){
+        handleLeaderboardRefresh_();
+      }
+    }catch(_){}
+
+    return {
+      ok:true,
+      id:id,
+      team:team,
+      channel_url:chUrl,
+      playlist_url:plUrl,
+      country:country,
+      city:city || '',
+      verify_token: verify_token
+    };
   }catch(err){
     try{ logErr_('handleRegistration_', err, { data:data }); }catch(_){}
     var out = { ok:false, error:String(err && err.message || err) };
@@ -106,7 +124,7 @@ function handleRegistration_(data){
   }
 }
 
-/** Диалоговый бот регистрации */
+/** Диалоговый бот регистрации (поддержка существующего фронта) */
 function handleRegistrationDialog_(data){
   try{
     data = data || {};
@@ -165,8 +183,7 @@ function handleRegistrationDialog_(data){
         });
         if (!final.ok) return { ok:false, error:final.error, details:final.details, state:state };
         state.step = 7;
-        // возвратим verify_token, чтобы человек мог вставить в описание плейлиста
-        return { ok:true, done:true, id:final.id, verify_token: final.verify_token, msg:'Заявка принята! Добавьте токен в описание плейлиста.', state:state };
+        return { ok:true, done:true, id:final.id, verify_token: final.verify_token, msg:'Заявка принята! Токен вернулся.', state:state };
 
       default:
         state = { step:0, payload:{} };
