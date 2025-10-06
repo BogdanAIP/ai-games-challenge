@@ -56,12 +56,11 @@ function doGet(e){
         resp = handleRegistration_(data);
         break;
 
-      // === ДОБАВЛЕНО: JSONP контент/лидерборд ===
+      // Публичные JSONP: контент/лидерборд
       case 'content':
         resp = handleContent_(data);
         break;
 
-      // === ДОБАВЛЕНО: JSONP форс-обновление лидерборда ===
       case 'lb_refresh':
         resp = handleLeaderboardRefresh_();
         break;
