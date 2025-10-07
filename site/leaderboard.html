@@ -3,11 +3,10 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Participants Rating — AI Games Challenge</title>
+<title>AI Games Challenge — Participants Rating</title>
 <link rel="stylesheet" href="./styles.css"/>
 <style>
   .page{max-width:1100px;margin:1.5rem auto;padding:0 1rem}
-  .hero h1{margin-bottom:.3rem}
   .lb-controls{display:flex;gap:12px;align-items:center;margin:.75rem 0}
   .lb-controls input{flex:1;padding:.6rem .8rem;border:1px solid #2b2f31;border-radius:10px;background:#111;color:#fff}
   .lb-table-wrap{overflow:auto;border:1px solid #2b2f31;border-radius:12px}
@@ -17,22 +16,28 @@
   .lb-table tbody tr:hover{background:#0f1112}
   code{background:#1a1d1f;padding:.1rem .35rem;border-radius:6px}
 </style>
-<!-- Inline config: keep it simple & robust -->
+<!-- Inline config to keep FORM_ENDPOINT robust -->
 <script id="site-config" type="application/json">
 { "FORM_ENDPOINT": "https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec" }
 </script>
 </head>
 <body>
 <header class="hero">
-  <h1 class="notranslate" translate="no">Participants Rating</h1>
-  <div class="cta-row"><a class="btn" href="./index.html">← Back</a></div>
+  <h1 class="notranslate" translate="no">AI Games Challenge</h1>
+  <nav class="topnav">
+    <a href="./join.html" class="btn">Join</a>
+    <a href="./rules.html" class="btn">Rules</a>
+    <a href="./leaderboard.html" class="btn">Participants Rating</a>
+    <a href="./faq.html" class="btn">FAQ</a>
+    <a href="./contact.html" class="btn">Contact</a>
+  </nav>
+  <p class="subtitle">Participants Rating</p>
 </header>
 
 <main class="page">
-  <!-- Removed the long "data source" note as requested -->
   <div id="lb-root" style="min-height:3rem"></div>
 </main>
 
-<script src="./app.lb.js?v=fix-fe-endpoint"></script>
+<script src="./app.lb.js?v=hdr1"></script>
 </body>
 </html>
