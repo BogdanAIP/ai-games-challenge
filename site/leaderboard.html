@@ -16,7 +16,7 @@
   .lb-table tbody tr:hover{background:#0f1112}
   code{background:#1a1d1f;padding:.1rem .35rem;border-radius:6px}
 </style>
-<!-- Inline config to keep FORM_ENDPOINT robust -->
+<!-- Inline config so app.lb.js always has an endpoint -->
 <script id="site-config" type="application/json">
 { "FORM_ENDPOINT": "https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec" }
 </script>
@@ -24,20 +24,14 @@
 <body>
 <header class="hero">
   <h1 class="notranslate" translate="no">AI Games Challenge</h1>
-  <nav class="topnav">
-    <a href="./join.html" class="btn">Join</a>
-    <a href="./rules.html" class="btn">Rules</a>
-    <a href="./leaderboard.html" class="btn">Participants Rating</a>
-    <a href="./faq.html" class="btn">FAQ</a>
-    <a href="./contact.html" class="btn">Contact</a>
-  </nav>
   <p class="subtitle">Participants Rating</p>
+  <div class="cta-row"><a class="btn" href="./index.html">← Back</a></div>
 </header>
 
 <main class="page">
   <div id="lb-root" style="min-height:3rem"></div>
 </main>
 
-<script src="./app.lb.js?v=hdr1"></script>
+<script src="./app.lb.js?v=hdr2"></script>
 </body>
 </html>
