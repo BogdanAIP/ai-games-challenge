@@ -1,73 +1,105 @@
 (function(){
-  function endpoint(){
-    if (window.FORM_ENDPOINT) return window.FORM_ENDPOINT;
-    try{
-      const tag=document.getElementById('site-config');
-      if(tag&&tag.textContent){const c=JSON.parse(tag.textContent);if(c&&c.FORM_ENDPOINT) return c.FORM_ENDPOINT;}
-    }catch(_){}
-    return window.FORM_ENDPOINT;
-  }
-  function jsonp(payload, timeoutMs){
-    return new Promise(function(resolve,reject){
-      const cb='cb_'+Math.random().toString(36).slice(2);
-      const s=document.createElement('script');
-      const u=new URL(endpoint());
-      u.searchParams.set('callback',cb);
-      u.searchParams.set('payload',JSON.stringify(payload));
-      let done=false;
-      window[cb]=(resp)=>{ if(done) return; done=true; cleanup(); resolve(resp); };
-      s.onerror=()=>{ if(done) return; done=true; cleanup(); reject(new Error('JSONP error')); };
-      const to=setTimeout(()=>{ if(done) return; done=true; cleanup(); reject(new Error('timeout')); }, timeoutMs||30000);
-      function cleanup(){ try{clearTimeout(to);}catch(_){}
-        try{delete window[cb];}catch(_){}
-        if(s.parentNode) s.parentNode.removeChild(s);
-      }
-      s.src=u.toString();
+  // ==== tiny JSONP helper ====
+  async function jsonpCall(payload){
+    const ep = window.FORM_ENDPOINT || (function(){
+      try{
+        const cfgEl = document.getElementById('site-config');
+        if (cfgEl && cfgEl.type === 'application/json') {
+          const cfg = JSON.parse(cfgEl.textContent||cfgEl.innerText||'{}');
+          if (cfg && cfg.FORM_ENDPOINT) return cfg.FORM_ENDPOINT;
+        }
+      }catch(_){}
+      return '';
+    })();
+    if (!ep) throw new Error('FORM_ENDPOINT not set');
+
+    const cbName = 'cb_' + Math.random().toString(36).slice(2);
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      const cleanup = () => { try{ delete window[cbName]; }catch(_){ } if (s && s.parentNode) s.parentNode.removeChild(s); };
+      const url = new URL(ep);
+      url.searchParams.set('callback', cbName);
+      url.searchParams.set('payload', JSON.stringify(payload||{}));
+      window[cbName] = (data) => { cleanup(); resolve(data); };
+      s.onerror = () => { cleanup(); reject(new Error('Network error')); };
+      s.src = url.toString();
       document.head.appendChild(s);
     });
   }
 
-  let STATE=null;
-  function appendBubble(cls, text){
-    const box=document.getElementById('regbot-box');
-    if(!box) return;
-    const div=document.createElement('div'); div.className=cls; div.textContent=text; box.appendChild(div); box.scrollTop=box.scrollHeight;
+  // ==== UI wiring ====
+  const box = document.getElementById('regbot-box');
+  const input = document.getElementById('regbot-input');
+  const btnSend = document.getElementById('regbot-send');
+  const btnStart = document.getElementById('regbot-start');
+
+  let REG_STATE = { step: 0, payload: {}, lang: '' };
+
+  function addLine(cls, text){
+    const p = document.createElement('div');
+    p.className = cls;
+    p.textContent = String(text||'');
+    box.appendChild(p);
+    box.scrollTop = box.scrollHeight;
   }
 
-  async function send(msg){
-    const input=document.getElementById('regbot-input');
-    appendBubble('regbot-a', msg);
+  function showAsk(resp){
+    if (resp && resp.ask) addLine('regbot-q', resp.ask);
+  }
+
+  function showDone(resp){
+    // Показываем msg с сервера как есть (в его языке)
+    if (resp && resp.msg) addLine('regbot-q', resp.msg);
+    // Если токен есть — выделим его
+    if (resp && resp.verify_token){
+      const wrap = document.createElement('div');
+      wrap.className = 'regbot-q';
+      wrap.innerHTML = 'Token: <strong class="notranslate" translate="no">' + String(resp.verify_token) + '</strong>';
+      box.appendChild(wrap);
+      box.scrollTop = box.scrollHeight;
+      // Также положим его в видимую “verify-token” секцию формы, если она есть
+      const vt = document.getElementById('verify-token');
+      const tokenInp = document.getElementById('token');
+      if (vt) {
+        vt.style.display = 'block';
+        vt.innerHTML = 'Verification token: <strong class="notranslate" translate="no">' + String(resp.verify_token) + '</strong>';
+      }
+      if (tokenInp && !tokenInp.value) tokenInp.value = String(resp.verify_token);
+    }
+  }
+
+  async function start(){
+    REG_STATE = { step: 0, payload: {}, lang: REG_STATE.lang || '' };
+    box.innerHTML = '';
+    addLine('regbot-q', '…');
     try{
-      const res=await jsonp({ action:'register', state:STATE, reply:msg }, 45000);
-      if(!res || !res.ok){ appendBubble('regbot-q','Ошибка: ' + (res && res.error || 'server')); return; }
-      STATE=res.state||STATE;
-      const text = (res.done && res.verify_token)
-        ? ('Заявка принята! Токен: ' + res.verify_token + ' (скопировано). Добавьте его в описание плейлиста.')
-        : (res.msg || res.ask || 'Ок');
-      appendBubble('regbot-q', text);
-      if(res.done && res.verify_token){ try{navigator.clipboard.writeText(res.verify_token);}catch(_){ } }
-    }catch(e){
-      appendBubble('regbot-q', 'Network error: ' + e.message);
+      const res = await jsonpCall({ action:'register', state: REG_STATE });
+      addLine('regbot-q', ''); // replace the ellipsis line spacing
+      REG_STATE = res && res.state || REG_STATE;
+      showAsk(res);
+    }catch(err){
+      addLine('regbot-q', 'Network error. Try again.');
     }
-    if(input) input.focus();
   }
 
-  document.addEventListener('DOMContentLoaded', function(){
-    const btnSend=document.getElementById('regbot-send');
-    const btnStart=document.getElementById('regbot-start');
-    const input=document.getElementById('regbot-input');
+  async function send(){
+    const val = String(input.value||'').trim();
+    if (!val) return;
+    addLine('regbot-a', val);
+    input.value = '';
+    try{
+      const res = await jsonpCall({ action:'register', state: REG_STATE, reply: val });
+      REG_STATE = res && res.state || REG_STATE;
+      if (res && res.done){
+        showDone(res);
+      }else{
+        showAsk(res);
+      }
+    }catch(err){
+      addLine('regbot-q', 'Network error. Try again.');
+    }
+  }
 
-    if(btnStart){
-      btnStart.addEventListener('click', async ()=>{
-        const res = await jsonp({ action:'register', text:'start' }, 30000);
-        STATE = res && res.state || null;
-        appendBubble('regbot-q', res && (res.ask || res.msg) || 'Привет! Как называется команда?');
-        input && input.focus();
-      });
-    }
-    if(btnSend && input){
-      btnSend.addEventListener('click', ()=>{ const v=String(input.value||'').trim(); if(!v) return; input.value=''; send(v); });
-      input.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ btnSend.click(); } });
-    }
-  });
+  if (btnStart) btnStart.addEventListener('click', start);
+  if (btnSend) btnSend.addEventListener('click', send);
 })();
