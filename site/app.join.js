@@ -1,99 +1,107 @@
 (function(){
-  function cfgEndpoint(){
+  async function loadEndpoint(){
     if (window.FORM_ENDPOINT) return window.FORM_ENDPOINT;
     try{
-      const tag=document.getElementById('site-config');
-      if(tag&&tag.textContent){ const c=JSON.parse(tag.textContent); if(c&&c.FORM_ENDPOINT) return c.FORM_ENDPOINT; }
-    }catch(_){}
-    return window.FORM_ENDPOINT;
-  }
-  function qs(root, sel){ return root.querySelector(sel); }
-  function jsonpCall(endpoint, payload, timeoutMs){
-    return new Promise(function(resolve,reject){
-      const cb='cb_'+Math.random().toString(36).slice(2);
-      const s=document.createElement('script');
-      const u=new URL(endpoint);
-      u.searchParams.set('callback',cb);
-      u.searchParams.set('payload',JSON.stringify(payload));
-      let done=false;
-      window[cb]=function(resp){ if(done) return; done=true; cleanup(); resolve(resp); };
-      s.onerror=function(){ if(done) return; done=true; cleanup(); reject(new Error('JSONP error')); };
-      const to=setTimeout(function(){ if(done) return; done=true; cleanup(); reject(new Error('timeout')); }, timeoutMs||30000);
-      function cleanup(){ try{clearTimeout(to);}catch(_){}
-        try{delete window[cb];}catch(_){}
-        if(s.parentNode) s.parentNode.removeChild(s);
+      const el = document.getElementById('site-config');
+      if (el && el.type === 'application/json'){
+        const cfg = JSON.parse(el.textContent || '{}');
+        if (cfg && cfg.FORM_ENDPOINT) {
+          window.FORM_ENDPOINT = cfg.FORM_ENDPOINT;
+          return window.FORM_ENDPOINT;
+        }
       }
-      s.src=u.toString();
+    }catch(_){}
+    throw new Error('FORM_ENDPOINT not set');
+  }
+
+  function jsonpCall(endpoint, payload){
+    return new Promise((resolve, reject)=>{
+      const cb = 'cb_' + Math.random().toString(36).slice(2);
+      const s  = document.createElement('script');
+      const u  = new URL(endpoint);
+      u.searchParams.set('callback', cb);
+      u.searchParams.set('payload', JSON.stringify(payload));
+
+      let done=false, to;
+      function cleanup(){ s.remove(); delete window[cb]; to && clearTimeout(to); }
+      window[cb] = function(resp){ if(done) return; done=true; cleanup(); resolve(resp); };
+      s.onerror = function(){ if(done) return; done=true; cleanup(); reject(new Error('JSONP error')); };
+      to = setTimeout(function(){ if(done) return; done=true; cleanup(); reject(new Error('Timeout')); }, 20000);
+
+      s.src = u.toString();
       document.head.appendChild(s);
     });
   }
 
-  document.addEventListener('DOMContentLoaded', function(){
-    const endpoint = cfgEndpoint();
-    const form = document.getElementById('join-form');
-    if(!form) return;
+  function $(sel, root){ return (root||document).querySelector(sel); }
 
-    const out = document.getElementById('join-result');
-    const tok = document.getElementById('token');
-    const copyBtn = document.getElementById('copyTokenBtn');
+  function randomToken(){ // UI-only generator (GAS всё равно выдаёт свой verify_token)
+    const hex = '0123456789ABCDEF';
+    let out=''; for(let i=0;i<8;i++) out += hex[Math.floor(Math.random()*hex.length)];
+    return out;
+  }
 
-    if(copyBtn){
-      copyBtn.addEventListener('click', function(){
-        const v = tok && tok.value ? tok.value : '';
-        if(!v) return;
-        navigator.clipboard.writeText(v).catch(()=>{});
+  async function main(){
+    const form = document.querySelector('form[data-join]');
+    if (!form) return;
+
+    const tokenInput = $('#token', form);
+    const genBtn     = $('#genTokenBtn');
+
+    if (genBtn && tokenInput){
+      genBtn.addEventListener('click', ()=>{
+        tokenInput.value = randomToken();
       });
     }
 
-    form.addEventListener('submit', async function(ev){
-      ev.preventDefault();
-      if(!endpoint){ if(out) out.textContent='FORM_ENDPOINT not set'; return; }
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const msg = $('#msg');
 
-      const team     = qs(form,'[name=team]')?.value?.trim() || '';
-      const country  = qs(form,'[name=country]')?.value?.trim() || '';
-      const contact  = qs(form,'[name=contact]')?.value?.trim() || '';
-      const chUrl    = qs(form,'[name=channel_url]')?.value?.trim() || '';
-      const plUrl    = qs(form,'[name=playlist_url]')?.value?.trim() || '';
-      const city     = qs(form,'[name=city]')?.value?.trim() || '';
-      const accR     = qs(form,'[name=accept_rules]')?.checked || false;
-      const accP     = qs(form,'[name=accept_policy]')?.checked || false;
-
-      if(!team || !country || !contact || !chUrl || !plUrl){
-        if(out) out.textContent='Please fill all required fields';
-        return;
-      }
-      if(!accR || !accP){
-        if(out) out.textContent='Please agree to the Rules and Privacy Policy';
-        return;
-      }
-
-      if(out) out.textContent='Submitting…';
       try{
-        const res = await jsonpCall(endpoint, {
-          action:'register_form',
-          team: team,
-          channel_url: chUrl,
-          playlist_url: plUrl,
-          contact: contact,
-          country: country,
-          city: city,
-          accept_rules: true,
-          accept_policy: true
-        }, 45000);
+        const endpoint = await loadEndpoint();
 
-        if(!res || !res.ok){
-          if(out) out.textContent = 'Error: ' + (res && res.error || 'server');
+        const fd = new FormData(form);
+        const payload = {
+          action: 'register_form',
+          team: (fd.get('team')||'').toString().trim(),
+          country: (fd.get('country')||'').toString().trim(),
+          contact: (fd.get('contact')||'').toString().trim(),
+          channel_url: (fd.get('channel_url')||'').toString().trim(),
+          playlist_url: (fd.get('playlist_url')||'').toString().trim(),
+          // читаем галочки по name (а не безымянные input[type=checkbox])
+          accept_rules: !!fd.get('accept_rules'),
+          accept_policy: !!fd.get('accept_policy')
+        };
+
+        msg.textContent = 'Submitting…';
+        const res = await jsonpCall(endpoint, payload);
+
+        if (!res || !res.ok){
+          msg.className = 'note err';
+          msg.textContent = 'Error: ' + (res && res.error || 'unknown');
           return;
         }
 
-        const token = res.verify_token || '';
-        if(tok) tok.value = token;
-        if(token){ try{ navigator.clipboard.writeText(token); }catch(_){ } }
-        if(out) out.textContent='Success!';
+        // Автоподстановка verify_token из ответа
+        if (res.verify_token && tokenInput){
+          tokenInput.value = res.verify_token;
+        }
 
-      }catch(e){
-        if(out) out.textContent='Network error: ' + e.message;
+        msg.className = 'note ok';
+        msg.textContent = 'Registration saved. Paste the token into your playlist description.';
+
+        const vr = document.getElementById('verify-token');
+        if (vr && res.verify_token){
+          vr.textContent = 'Your verification token: ' + res.verify_token;
+          vr.style.display = 'block';
+        }
+      }catch(err){
+        msg.className = 'note err';
+        msg.textContent = 'Network error: ' + (err && err.message || err);
       }
     });
-  });
+  }
+
+  document.addEventListener('DOMContentLoaded', main);
 })();

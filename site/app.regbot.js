@@ -1,105 +1,197 @@
 (function(){
-  // ==== tiny JSONP helper ====
-  async function jsonpCall(payload){
-    const ep = window.FORM_ENDPOINT || (function(){
-      try{
-        const cfgEl = document.getElementById('site-config');
-        if (cfgEl && cfgEl.type === 'application/json') {
-          const cfg = JSON.parse(cfgEl.textContent||cfgEl.innerText||'{}');
-          if (cfg && cfg.FORM_ENDPOINT) return cfg.FORM_ENDPOINT;
-        }
-      }catch(_){}
-      return '';
-    })();
-    if (!ep) throw new Error('FORM_ENDPOINT not set');
+  let REG_STATE = null;
+  let LANG = 'en';
 
-    const cbName = 'cb_' + Math.random().toString(36).slice(2);
-    return new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      const cleanup = () => { try{ delete window[cbName]; }catch(_){ } if (s && s.parentNode) s.parentNode.removeChild(s); };
-      const url = new URL(ep);
-      url.searchParams.set('callback', cbName);
-      url.searchParams.set('payload', JSON.stringify(payload||{}));
-      window[cbName] = (data) => { cleanup(); resolve(data); };
-      s.onerror = () => { cleanup(); reject(new Error('Network error')); };
-      s.src = url.toString();
+  const T = {
+    en: {
+      start: 'Choose language: English or Russian?',
+      ask_team: 'What is your team name?',
+      ask_channel: 'Link to your YouTube channel (https://youtube.com/@handle or https://youtube.com/channel/ID):',
+      ask_playlist: 'Send your SEASON playlist URL (must be https://youtube.com/playlist?list=...):',
+      ask_country: 'Country/region (e.g., RU, UA, KZ):',
+      ask_city: 'City (optional — send \'-\' to skip):',
+      ask_contact: 'Contact (email or @username):',
+      ask_consents: 'Confirm you agree to the Rules and the Privacy Policy (yes/no).',
+      bad_channel: 'Doesn’t look like a channel URL. Please send https://youtube.com/@handle or https://youtube.com/channel/ID',
+      bad_playlist: 'Please send a correct playlist URL: https://youtube.com/playlist?list=...',
+      need_country: 'Please provide your country/region (two letters, e.g., RU).',
+      need_contact: 'Please provide a contact.',
+      need_yes: 'You must agree to proceed. Type "yes" if you agree.',
+      done_prefix: 'Registration saved. Your token: ',
+      done_suffix: ' Paste it into your playlist description.',
+    },
+    ru: {
+      start: 'Выберите язык: английский или русский?',
+      ask_team: 'Как называется ваша команда?',
+      ask_channel: 'Ссылка на YouTube-канал (https://youtube.com/@handle или https://youtube.com/channel/ID):',
+      ask_playlist: 'Пришлите ссылку на СЕЗОННЫЙ плейлист (только https://youtube.com/playlist?list=...):',
+      ask_country: 'Страна/регион (например, RU, UA, KZ):',
+      ask_city: 'Город (опционально — можно пропустить, отправив \'-\'):',
+      ask_contact: 'Контакт (email или @username):',
+      ask_consents: 'Подтвердите согласие с Правилами и Политикой конфиденциальности (да/нет).',
+      bad_channel: 'Не похоже на ссылку канала. Пришлите https://youtube.com/@handle или https://youtube.com/channel/ID',
+      bad_playlist: 'Пришлите корректный плейлист: https://youtube.com/playlist?list=...',
+      need_country: 'Укажите страну (две буквы, например RU).',
+      need_contact: 'Укажите контакт для связи.',
+      need_yes: 'Нужно согласие для продолжения. Напишите "да", если согласны.',
+      done_prefix: 'Заявка сохранена. Ваш токен: ',
+      done_suffix: '. Вставьте его в описание плейлиста.',
+    }
+  };
+
+  function $(sel, root){ return (root||document).querySelector(sel); }
+
+  async function loadEndpoint(){
+    if (window.FORM_ENDPOINT) return window.FORM_ENDPOINT;
+    try{
+      const el = document.getElementById('site-config');
+      if (el && el.type === 'application/json'){
+        const cfg = JSON.parse(el.textContent || '{}');
+        if (cfg && cfg.FORM_ENDPOINT) {
+          window.FORM_ENDPOINT = cfg.FORM_ENDPOINT;
+          return window.FORM_ENDPOINT;
+        }
+      }
+    }catch(_){}
+    throw new Error('FORM_ENDPOINT not set');
+  }
+
+  function jsonpCall(endpoint, payload){
+    return new Promise((resolve, reject)=>{
+      const cb = 'cb_' + Math.random().toString(36).slice(2);
+      const s  = document.createElement('script');
+      const u  = new URL(endpoint);
+      u.searchParams.set('callback', cb);
+      u.searchParams.set('payload', JSON.stringify(payload));
+      let done=false, to;
+      function cleanup(){ s.remove(); delete window[cb]; to && clearTimeout(to); }
+      window[cb] = (resp)=>{ if(done) return; done=true; cleanup(); resolve(resp); };
+      s.onerror  = ()=>{ if(done) return; done=true; cleanup(); reject(new Error('JSONP error')); };
+      to = setTimeout(()=>{ if(done) return; done=true; cleanup(); reject(new Error('Timeout')); }, 20000);
+      s.src = u.toString();
       document.head.appendChild(s);
     });
   }
 
-  // ==== UI wiring ====
-  const box = document.getElementById('regbot-box');
-  const input = document.getElementById('regbot-input');
-  const btnSend = document.getElementById('regbot-send');
-  const btnStart = document.getElementById('regbot-start');
+  function pushQ(text){ const box = $('#regbot-box'); const d = document.createElement('div'); d.className='regbot-q'; d.textContent = text; box.appendChild(d); box.scrollTop = box.scrollHeight; }
+  function pushA(text){ const box = $('#regbot-box'); const d = document.createElement('div'); d.className='regbot-a'; d.textContent = text; box.appendChild(d); box.scrollTop = box.scrollHeight; }
 
-  let REG_STATE = { step: 0, payload: {}, lang: '' };
-
-  function addLine(cls, text){
-    const p = document.createElement('div');
-    p.className = cls;
-    p.textContent = String(text||'');
-    box.appendChild(p);
-    box.scrollTop = box.scrollHeight;
+  function normalizeChannel(s){
+    s = String(s||'').trim();
+    if (/^@[\w.\-]+$/i.test(s)) return 'https://www.youtube.com/' + s.replace(/^@/,'@');
+    s = s.replace(/^https?:\/\/youtu\.be\//i, 'https://www.youtube.com/');
+    return s;
+  }
+  function isValidChannel(u){
+    u = String(u||'').trim();
+    if (/^@[\w.\-]+$/i.test(u)) return true;
+    if (/^https?:\/\/(www\.)?youtube\.com\/channel\/[A-Za-z0-9_\-]+$/i.test(u)) return true;
+    if (/^https?:\/\/(www\.)?youtube\.com\/@[\w.\-]+$/i.test(u)) return true;
+    return false;
+  }
+  function isValidPlaylist(u){
+    u = String(u||'').trim();
+    return /^https?:\/\/(www\.)?youtube\.com\/playlist\?list=[A-Za-z0-9_\-]+/i.test(u);
   }
 
-  function showAsk(resp){
-    if (resp && resp.ask) addLine('regbot-q', resp.ask);
-  }
-
-  function showDone(resp){
-    // Показываем msg с сервера как есть (в его языке)
-    if (resp && resp.msg) addLine('regbot-q', resp.msg);
-    // Если токен есть — выделим его
-    if (resp && resp.verify_token){
-      const wrap = document.createElement('div');
-      wrap.className = 'regbot-q';
-      wrap.innerHTML = 'Token: <strong class="notranslate" translate="no">' + String(resp.verify_token) + '</strong>';
-      box.appendChild(wrap);
-      box.scrollTop = box.scrollHeight;
-      // Также положим его в видимую “verify-token” секцию формы, если она есть
-      const vt = document.getElementById('verify-token');
-      const tokenInp = document.getElementById('token');
-      if (vt) {
-        vt.style.display = 'block';
-        vt.innerHTML = 'Verification token: <strong class="notranslate" translate="no">' + String(resp.verify_token) + '</strong>';
+  async function handleReply(msg){
+    const t = T[LANG];
+    const outField = $('#verify-token');
+    switch (REG_STATE.step|0){
+      case 0: { // choose language
+        const m = msg.trim().toLowerCase();
+        if (m.includes('ru') || m.includes('рус')) LANG='ru'; else LANG='en';
+        REG_STATE = { step:1, payload:{} };
+        pushQ(t.ask_team);
+        return;
       }
-      if (tokenInp && !tokenInp.value) tokenInp.value = String(resp.verify_token);
-    }
-  }
-
-  async function start(){
-    REG_STATE = { step: 0, payload: {}, lang: REG_STATE.lang || '' };
-    box.innerHTML = '';
-    addLine('regbot-q', '…');
-    try{
-      const res = await jsonpCall({ action:'register', state: REG_STATE });
-      addLine('regbot-q', ''); // replace the ellipsis line spacing
-      REG_STATE = res && res.state || REG_STATE;
-      showAsk(res);
-    }catch(err){
-      addLine('regbot-q', 'Network error. Try again.');
-    }
-  }
-
-  async function send(){
-    const val = String(input.value||'').trim();
-    if (!val) return;
-    addLine('regbot-a', val);
-    input.value = '';
-    try{
-      const res = await jsonpCall({ action:'register', state: REG_STATE, reply: val });
-      REG_STATE = res && res.state || REG_STATE;
-      if (res && res.done){
-        showDone(res);
-      }else{
-        showAsk(res);
+      case 1: {
+        if (!msg.trim()) { pushQ(t.ask_team); return; }
+        REG_STATE.payload.team = msg.trim();
+        REG_STATE.step = 2; pushQ(t.ask_channel); return;
       }
-    }catch(err){
-      addLine('regbot-q', 'Network error. Try again.');
+      case 2: {
+        const ch = normalizeChannel(msg);
+        if (!isValidChannel(ch)) { pushQ(t.bad_channel); return; }
+        REG_STATE.payload.channel_url = ch;
+        REG_STATE.step = 3; pushQ(t.ask_playlist); return;
+      }
+      case 3: {
+        if (!isValidPlaylist(msg)) { pushQ(t.bad_playlist); return; }
+        REG_STATE.payload.playlist_url = msg.trim();
+        REG_STATE.step = 4; pushQ(t.ask_country); return;
+      }
+      case 4: {
+        if (!msg.trim()) { pushQ(t.need_country); return; }
+        REG_STATE.payload.country = msg.trim();
+        REG_STATE.step = 5; pushQ(t.ask_city); return;
+      }
+      case 5: {
+        if (msg.trim() && msg.trim() !== '-') REG_STATE.payload.city = msg.trim();
+        REG_STATE.step = 6; pushQ(t.ask_contact); return;
+      }
+      case 6: {
+        if (!msg.trim()) { pushQ(t.need_contact); return; }
+        REG_STATE.payload.contact = msg.trim();
+        REG_STATE.step = 7; pushQ(t.ask_consents); return;
+      }
+      case 7: {
+        const yes = msg.trim().toLowerCase();
+        const ok = (LANG==='ru') ? (yes==='да' || yes==='y' || yes==='yes') : (yes==='yes' || yes==='y' || yes==='да');
+        if (!ok){ pushQ(t.need_yes); return; }
+
+        // final submit
+        const endpoint = await loadEndpoint();
+        const payload = {
+          action: 'register',
+          state: REG_STATE,
+          reply: 'yes'
+        };
+        const res = await jsonpCall(endpoint, payload);
+        if (!res || !res.ok){
+          pushQ('Error: ' + (res && res.error || 'unknown'));
+          return;
+        }
+        // res.done + verify_token (GAS уже возвращает токен)
+        if (res.verify_token && outField){
+          outField.textContent = (t.done_prefix + res.verify_token + (t.done_suffix||''));
+          outField.style.display = 'block';
+        } else {
+          pushQ(t.done_prefix + (res.verify_token || '—') + (t.done_suffix||''));
+        }
+        return;
+      }
+      default:
+        REG_STATE = { step:0, payload:{} };
+        pushQ(T[LANG].start);
+        return;
     }
   }
 
-  if (btnStart) btnStart.addEventListener('click', start);
-  if (btnSend) btnSend.addEventListener('click', send);
+  function bindUI(){
+    $('#regbot-box').textContent = '';
+    REG_STATE = { step:0, payload:{} };
+    pushQ(T[LANG].start);
+
+    $('#regbot-start').addEventListener('click', ()=>{
+      $('#regbot-box').textContent = '';
+      LANG='en';
+      REG_STATE = { step:0, payload:{} };
+      pushQ(T[LANG].start);
+    });
+    $('#regbot-send').addEventListener('click', async ()=>{
+      const i = $('#regbot-input'); const v = i.value; i.value='';
+      if (!v.trim()) return;
+      pushA(v);
+      try{ await handleReply(v); }catch(err){ pushQ('Network error: '+(err && err.message || err)); }
+    });
+    $('#regbot-input').addEventListener('keydown', async (e)=>{
+      if (e.key === 'Enter'){
+        e.preventDefault();
+        $('#regbot-send').click();
+      }
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', bindUI);
 })();

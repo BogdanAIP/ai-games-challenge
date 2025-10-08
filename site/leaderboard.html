@@ -1,25 +1,21 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>AI Games Challenge — Participants Rating</title>
-<link rel="stylesheet" href="./styles.css"/>
-<style>
-  .page{max-width:1100px;margin:1.5rem auto;padding:0 1rem}
-  .lb-controls{display:flex;gap:12px;align-items:center;margin:.75rem 0}
-  .lb-controls input{flex:1;padding:.6rem .8rem;border:1px solid #2b2f31;border-radius:10px;background:#111;color:#fff}
-  .lb-table-wrap{overflow:auto;border:1px solid #2b2f31;border-radius:12px}
-  .lb-table{width:100%;border-collapse:collapse}
-  .lb-table thead th{position:sticky;top:0;background:#0e0f10}
-  .lb-table th,.lb-table td{padding:.65rem .75rem;border-bottom:1px solid #2b2f31;text-align:left;white-space:nowrap}
-  .lb-table tbody tr:hover{background:#0f1112}
-  code{background:#1a1d1f;padding:.1rem .35rem;border-radius:6px}
-</style>
-<!-- Inline config so app.lb.js always has an endpoint -->
-<script id="site-config" type="application/json">
-{ "FORM_ENDPOINT": "https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec" }
-</script>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Participants Rating — AI Games Challenge</title>
+  <link rel="stylesheet" href="./styles.css"/>
+  <style>
+    .wrap{max-width:960px;margin:2rem auto;padding:0 1rem}
+    .search-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+    table{width:100%;border-collapse:separate;border-spacing:0 6px}
+    th,td{padding:.6rem .8rem;background:#0e0f10;border:1px solid #2b2f31}
+    th{background:#111;border-color:#2b2f31}
+    tr td:first-child, tr th:first-child{border-top-left-radius:10px;border-bottom-left-radius:10px}
+    tr td:last-child, tr th:last-child{border-top-right-radius:10px;border-bottom-right-radius:10px}
+    .muted{color:#687076}
+  </style>
+  <script type="application/json" id="site-config">{"FORM_ENDPOINT":"https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec"}</script>
 </head>
 <body>
 <header class="hero">
@@ -28,10 +24,21 @@
   <div class="cta-row"><a class="btn" href="./index.html">← Back</a></div>
 </header>
 
-<main class="page">
-  <div id="lb-root" style="min-height:3rem"></div>
+<main class="wrap">
+  <div class="search-row">
+    <input id="q" placeholder="Search by team, token, country or city"/>
+    <button class="btn" id="refreshBtn" type="button">Refresh</button>
+  </div>
+
+  <table id="lb">
+    <thead><tr><th>#</th><th>Team</th><th>Views</th><th>Likes</th><th>ER</th><th class="muted">Token</th><th class="muted">Region</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <p id="lb-msg" class="muted"></p>
 </main>
 
-<script src="./app.lb.js?v=hdr2"></script>
+<script src="./app.lb.js?v=rating2"></script>
+<script src="./public/config.json" type="application/json" id="site-config"></script>
 </body>
 </html>
