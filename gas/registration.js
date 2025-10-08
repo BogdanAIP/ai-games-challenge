@@ -4,9 +4,7 @@
  * Плейлист обязателен и только playlist URL (видео запрещены).
  * Требуем согласие с правилами/политикой. Всегда возвращаем verify_token.
  * Пишем в лист "Registrations" (создаём, если нет). Шапка включает verify_token.
- * ======================================================================= */
-
-function normalizeChannelUrl_(s){
+ * ======================================================================= */function normalizeChannelUrl_(s){
   s = String(s||'').trim();
   if (!s) return '';
   if (/^@[\w.\-]+$/i.test(s)) return 'https://www.youtube.com/' + s.replace(/^@/,'@');
@@ -39,9 +37,7 @@ function assert_(cond, msg, extra){
     if (extra) e.extra = extra;
     throw e;
   }
-}
-
-/** ensure Registrations header (including verify_token) */
+}/** ensure Registrations header (including verify_token) */
 function ensureRegSheet_(){
   var ss = SS_();
   var sh = ss.getSheetByName('Registrations');
@@ -64,15 +60,11 @@ function ensureRegSheet_(){
     sh.getRange(1,1,1,header.length).setValues([header]);
   }
   return sh;
-}
-
-/** 8-char uppercase hex token */
+}/** 8-char uppercase hex token */
 function makeToken_(){
   var s = Utilities.getUuid().replace(/-/g,'').toUpperCase();
   return s.slice(-8);
-}
-
-/** Manual form (or JSONP) */
+}/** Manual form (or JSONP) */
 function handleRegistration_(data){
   try{
     data = data || {};
@@ -83,9 +75,7 @@ function handleRegistration_(data){
     var country = String(data.country||'').trim();
     var city    = String(data.city||'').trim();
     var acceptRules  = !!data.accept_rules;
-    var acceptPolicy = !!data.accept_policy;
-
-    assert_(team, 'Missing field: team');
+    var acceptPolicy = !!data.accept_policy;    assert_(team, 'Missing field: team');
     assert_(chUrl, 'Missing field: channel_url');
     assert_(isValidChannelUrl_(chUrl), 'Invalid channel_url', { got:String(data.channel_url||''), normalized:chUrl });
     assert_(plUrl, 'Missing field: playlist_url');
@@ -93,16 +83,10 @@ function handleRegistration_(data){
     assert_(contact, 'Missing field: contact');
     assert_(country, 'Missing field: country');
     assert_(acceptRules,  'Missing consent: accept_rules');
-    assert_(acceptPolicy, 'Missing consent: accept_policy');
-
-    var sh = ensureRegSheet_();
+    assert_(acceptPolicy, 'Missing consent: accept_policy');    var sh = ensureRegSheet_();
     var id = Utilities.getUuid();
-    var token = makeToken_();
-
-    var row = [new Date(), id, team, chUrl, plUrl, contact, country, city, token, 'new', ''];
-    sh.appendRow(row);
-
-    return { ok:true, id:id, team:team, channel_url:chUrl, playlist_url:plUrl,
+    var token = makeToken_();    var row = [new Date(), id, team, chUrl, plUrl, contact, country, city, token, 'new', ''];
+    sh.appendRow(row);    return { ok:true, id:id, team:team, channel_url:chUrl, playlist_url:plUrl,
              country:country, city:city, verify_token:token };
   }catch(err){
     try{ logErr_('handleRegistration_', err, { data:data }); }catch(_){}
@@ -110,9 +94,7 @@ function handleRegistration_(data){
     if (err && err.extra) out.details = err.extra;
     return out;
   }
-}
-
-/** ==== Dialog bot (bilingual RU/EN) ==== */
+}/** ==== Dialog bot (bilingual RU/EN) ==== */
 function _T_(lang, key, a){
   var M = {
     en: {
@@ -165,16 +147,12 @@ function _pickLang_(s){
   if (s === 'english') return 'en';
   if (s === 'russian' || s === 'русский') return 'ru';
   return '';
-}
-
-function handleRegistrationDialog_(data){
+}function handleRegistrationDialog_(data){
   try{
     data = data || {};
     var state = data.state || { step:0, payload:{}, lang:'' };
     var reply = (data.reply || data.text || '').toString().trim();
-    function ask(a){ return { ok:true, ask:a, state: state }; }
-
-    switch (state.step|0){
+    function ask(a){ return { ok:true, ask:a, state: state }; }    switch (state.step|0){
       case 0: {
         // language selection
         if (!state.lang){
@@ -189,46 +167,32 @@ function handleRegistrationDialog_(data){
         }
         state.step = 1;
         return ask(_T_(state.lang, 'ask_team'));
-      }
-
-      case 1:
+      }      case 1:
         if (!reply) return ask(_T_(state.lang, 'ask_team'));
         state.payload.team = reply;
         state.step = 2;
-        return ask(_T_(state.lang, 'ask_channel'));
-
-      case 2: {
+        return ask(_T_(state.lang, 'ask_channel'));      case 2: {
         var ch = normalizeChannelUrl_(reply);
         if (!isValidChannelUrl_(ch)) return ask(_T_(state.lang, 'bad_channel'));
         state.payload.channel_url = ch;
         state.step = 3;
         return ask(_T_(state.lang, 'ask_playlist'));
-      }
-
-      case 3:
+      }      case 3:
         if (!isValidPlaylistUrl_(reply)) return ask(_T_(state.lang, 'bad_playlist'));
         state.payload.playlist_url = reply;
         state.step = 4;
-        return ask(_T_(state.lang, 'ask_country'));
-
-      case 4:
+        return ask(_T_(state.lang, 'ask_country'));      case 4:
         if (!reply) return ask(_T_(state.lang, 'need_country'));
         state.payload.country = reply;
         state.step = 5;
-        return ask(_T_(state.lang, 'ask_city'));
-
-      case 5:
+        return ask(_T_(state.lang, 'ask_city'));      case 5:
         if (reply && reply !== '-') state.payload.city = reply;
         state.step = 6;
-        return ask(_T_(state.lang, 'ask_contact'));
-
-      case 6:
+        return ask(_T_(state.lang, 'ask_contact'));      case 6:
         if (!reply) return ask(_T_(state.lang, 'need_contact'));
         state.payload.contact = reply;
         state.step = 7;
-        return ask(_T_(state.lang, 'ask_consent'));
-
-      case 7: {
+        return ask(_T_(state.lang, 'ask_consent'));      case 7: {
         if (!_yes_(state.lang, reply)) return ask(_T_(state.lang, 'consent_required'));
         var final = handleRegistration_({
           team: state.payload.team,
@@ -250,9 +214,7 @@ function handleRegistrationDialog_(data){
           msg:_T_(state.lang, 'done', final.verify_token),
           state:state
         };
-      }
-
-      default:
+      }      default:
         state = { step:0, payload:{}, lang: state.lang || '' };
         return ask(_T_(state.lang || 'en', 'ask_team'));
     }

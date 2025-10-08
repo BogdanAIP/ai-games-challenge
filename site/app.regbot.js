@@ -48,24 +48,12 @@
   }
 
   function showDone(resp){
-    // Показываем msg с сервера как есть (в его языке)
-    if (resp && resp.msg) addLine('regbot-q', resp.msg);
-    // Если токен есть — выделим его
-    if (resp && resp.verify_token){
-      const wrap = document.createElement('div');
-      wrap.className = 'regbot-q';
-      wrap.innerHTML = 'Token: <strong class="notranslate" translate="no">' + String(resp.verify_token) + '</strong>';
-      box.appendChild(wrap);
-      box.scrollTop = box.scrollHeight;
-      // Также положим его в видимую “verify-token” секцию формы, если она есть
-      const vt = document.getElementById('verify-token');
-      const tokenInp = document.getElementById('token');
-      if (vt) {
-        vt.style.display = 'block';
-        vt.innerHTML = 'Verification token: <strong class="notranslate" translate="no">' + String(resp.verify_token) + '</strong>';
-      }
-      if (tokenInp && !tokenInp.value) tokenInp.value = String(resp.verify_token);
-    }
+  if (resp && resp.msg) addLine("regbot-q", resp.msg);
+  if (resp && resp.verify_token){
+    const tokenInp = document.getElementById("token");
+    if (tokenInp && !tokenInp.value) tokenInp.value = String(resp.verify_token);
+  }
+}
   }
 
   async function start(){
