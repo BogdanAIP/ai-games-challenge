@@ -1,9 +1,10 @@
 /** =========================== registration.js ===========================
- * Двухфазная регистрация с длинными правилами через JSONP:
- * 1) register_init  — создаёт запись (без правил), возвращает id + verify_token
- * 2) rules_put      — принимает текст правил кусками (seq, chunk)
- * 3) rules_commit   — собирает, валидирует (500–3000), сохраняет в лист Rules
- * Валидации канал/плейлист/страна/контакт остаются. Лист Registrations хранит токен.
+ * Two-phase registration + dialog bot (EN/RU).
+ * Web form:
+ *   - register_init -> rules_put (chunks) -> rules_commit
+ * Bot:
+ *   - handleRegistrationDialog_: collects fields incl. rules_text (500–3000),
+ *     then writes to Registrations + Rules directly and returns verify_token.
  * ======================================================================= */
 
 function normalizeChannelUrl_(s){
@@ -39,57 +40,27 @@ function assert_(cond, msg, extra){
     throw e;
   }
 }
-function makeToken_(){ // 8 HEX
-  var s = Utilities.getUuid().replace(/-/g,'').toUpperCase();
-  return s.slice(-8);
-}
+function makeToken_(){ var s = Utilities.getUuid().replace(/-/g,'').toUpperCase(); return s.slice(-8); }
 
-/** Registrations: гарантируем шапку (с verify_token) */
+/** Sheets */
 function ensureRegSheet_(){
   var ss = SS_();
   var sh = ss.getSheetByName('Registrations');
   var header = ['ts','id','team','channel_url','playlist_url','contact','country','city','verify_token','status','notes'];
-  if (!sh){
-    sh = ss.insertSheet('Registrations');
-    sh.getRange(1,1,1,header.length).setValues([header]);
-    return sh;
-  }
-  if (sh.getLastRow() === 0){
-    sh.getRange(1,1,1,header.length).setValues([header]);
-    return sh;
-  }
-  sh.getRange(1,1,1,header.length).setValues([header]); // переписываем ожидаемую шапку
+  if (!sh){ sh = ss.insertSheet('Registrations'); }
+  sh.getRange(1,1,1,header.length).setValues([header]);
   return sh;
 }
-
-/** Rules: куда сохраняем финальный текст */
 function ensureRulesSheet_(){
   var ss = SS_();
   var sh = ss.getSheetByName('Rules');
   var header = ['ts','reg_id','team','country','city','channel_url','playlist_url','rules_len','rules_text'];
-  if (!sh){
-    sh = ss.insertSheet('Rules');
-    sh.getRange(1,1,1,header.length).setValues([header]);
-  }else if (sh.getLastRow() === 0){
-    sh.getRange(1,1,1,header.length).setValues([header]);
-  }
+  if (!sh){ sh = ss.insertSheet('Rules'); }
+  sh.getRange(1,1,1,header.length).setValues([header]);
   return sh;
 }
 
-/** временное хранилище чанков в ScriptProperties */
-function _chunkKey_(id){ return 'rules_chunks:' + id; }
-function _getChunks_(id){
-  var raw = PropertiesService.getScriptProperties().getProperty(_chunkKey_(id)) || '[]';
-  try { return JSON.parse(raw); } catch(_){ return []; }
-}
-function _setChunks_(id, arr){
-  PropertiesService.getScriptProperties().setProperty(_chunkKey_(id), JSON.stringify(arr||[]));
-}
-function _clearChunks_(id){
-  PropertiesService.getScriptProperties().deleteProperty(_chunkKey_(id));
-}
-
-/** 1) register_init — запись без правил (status=draft), выдаём token */
+/** ===== Two-phase API for the web form (kept as before) ===== */
 function registerInit_(data){
   try{
     data = data || {};
@@ -116,9 +87,6 @@ function registerInit_(data){
     var id = Utilities.getUuid();
     var token = makeToken_();
     sh.appendRow([ new Date(), id, team, chUrl, plUrl, contact, country, city, token, 'draft', '' ]);
-
-    _clearChunks_(id); // на всякий
-
     return { ok:true, id:id, verify_token:token, team:team, channel_url:chUrl, playlist_url:plUrl, country:country, city:city, status:'draft' };
   }catch(err){
     try{ logErr_('registerInit_', err, { data:data }); }catch(_){}
@@ -128,7 +96,12 @@ function registerInit_(data){
   }
 }
 
-/** 2) rules_put — принимаем кусок текста (seq, chunk) */
+/** Chunk buffer for WEB flow (kept) */
+function _chunkKey_(id){ return 'rules_chunks:' + id; }
+function _getChunks_(id){ var raw = PropertiesService.getScriptProperties().getProperty(_chunkKey_(id)) || '[]'; try { return JSON.parse(raw); } catch(_){ return []; } }
+function _setChunks_(id, arr){ PropertiesService.getScriptProperties().setProperty(_chunkKey_(id), JSON.stringify(arr||[])); }
+function _clearChunks_(id){ PropertiesService.getScriptProperties().deleteProperty(_chunkKey_(id)); }
+
 function rulesPut_(data){
   try{
     data = data || {};
@@ -137,7 +110,6 @@ function rulesPut_(data){
     var chunk= String(data.chunk||'');
     assert_(id, 'Missing field: id');
     assert_(chunk, 'Missing field: chunk');
-
     var arr = _getChunks_(id);
     arr[seq] = chunk;
     _setChunks_(id, arr);
@@ -147,8 +119,6 @@ function rulesPut_(data){
     return { ok:false, error:String(err && err.message || err) };
   }
 }
-
-/** 3) rules_commit — склеиваем, валидируем и сохраняем в Rules; статус -> new */
 function rulesCommit_(data){
   try{
     data = data || {};
@@ -186,8 +156,122 @@ function rulesCommit_(data){
   }
 }
 
-/** Старый единофазный обработчик оставляем (если кто-то дергает напрямую) */
-function handleRegistration_(data){
-  // Просто пробрасываем через двухфазный init без правил
-  return registerInit_(data);
+/** ===== Dialog bot (action: 'register') — EN/RU, mandatory rules_text ===== */
+function handleRegistrationDialog_(data){
+  try{
+    data = data || {};
+    var st = data.state || { step:0, payload:{}, lang:'' };
+    var reply = (data.reply || data.text || '').toString().trim();
+
+    function A(t){ return { ok:true, ask:t, state: st }; }
+    function L(p){ return (st.lang==='ru') ? (p.ru) : (p.en); }
+
+    switch (st.step|0){
+      case 0:
+        st = { step:1, payload:{}, lang:'' };
+        return A('Choose language: English or Russian?');
+      case 1: { // language
+        var r = reply.toLowerCase();
+        if (/^en|english/i.test(r)) st.lang = 'en';
+        else if (/^ru|рус/i.test(r)) st.lang = 'ru';
+        else return A('Choose language: English or Russian?');
+        st.step = 2;
+        return A(L({ en:'What is your team name?', ru:'Как называется ваша команда?' }));
+      }
+      case 2: { // team
+        if (!reply) return A(L({ en:'Please enter a team name', ru:'Пожалуйста, укажите название команды' }));
+        st.payload.team = reply; st.step=3;
+        return A(L({ en:'Link to your YouTube channel (https://youtube.com/@handle or https://youtube.com/channel/ID):',
+                     ru:'Ссылка на YouTube-канал (https://youtube.com/@handle или https://youtube.com/channel/ID):' }));
+      }
+      case 3: { // channel
+        var ch = normalizeChannelUrl_(reply);
+        if (!isValidChannelUrl_(ch)) return A(L({ en:'That does not look like a channel URL. Please send https://youtube.com/@handle or https://youtube.com/channel/ID',
+                                                  ru:'Не похоже на ссылку канала. Пришлите https://youtube.com/@handle или https://youtube.com/channel/ID' }));
+        st.payload.channel_url = ch; st.step=4;
+        return A(L({ en:'Send your SEASON playlist URL (must be https://youtube.com/playlist?list=...):',
+                     ru:'Пришлите ссылку на СЕЗОННЫЙ плейлист (только https://youtube.com/playlist?list=...):' }));
+      }
+      case 4: { // playlist
+        if (!isValidPlaylistUrl_(reply)) return A(L({ en:'Please send a valid playlist URL (https://youtube.com/playlist?list=...)',
+                                                      ru:'Пришлите корректный плейлист (https://youtube.com/playlist?list=...)' }));
+        st.payload.playlist_url = reply; st.step=5;
+        return A(L({ en:'Country/region (e.g., RU, UA, KZ):', ru:'Страна/регион (например, RU, UA, KZ):' }));
+      }
+      case 5: { // country
+        if (!reply) return A(L({ en:'Please provide a 2-letter country code', ru:'Укажите код страны из двух букв' }));
+        st.payload.country = reply; st.step=6;
+        return A(L({ en:'City (optional — send "-" to skip):', ru:'Город (опционально — можно пропустить, отправив "-"):' }));
+      }
+      case 6: { // city
+        if (reply && reply !== '-') st.payload.city = reply;
+        st.step = 7;
+        return A(L({ en:'Contact (email or @username):', ru:'Контактное лицо (электронная почта или @имя пользователя):' }));
+      }
+      case 7: { // contact
+        if (!reply) return A(L({ en:'Please send a contact', ru:'Пожалуйста, укажите контакт' }));
+        st.payload.contact = reply; st.step = 8;
+        return A(L({ en:'Paste a short RULES text (500–3000 chars).',
+                     ru:'Вставьте краткий текст ПРАВИЛ (500–3000 символов).' }));
+      }
+      case 8: { // rules_text mandatory
+        var rules = String(reply||'').trim();
+        if (!(rules.length>=500 && rules.length<=3000)){
+          return A(L({ en:'Rules text must be 500–3000 characters. Please paste again.',
+                       ru:'Текст правил должен быть 500–3000 символов. Пожалуйста, пришлите ещё раз.' }));
+        }
+        st.payload.rules_text = rules; st.step = 9;
+        return A(L({ en:'Confirm you agree to the Rules and the Privacy Policy (yes/no).',
+                     ru:'Подтвердите согласие с Правилами и Политикой конфиденциальности (да/нет).' }));
+      }
+      case 9: { // consents
+        var yes = reply.toLowerCase();
+        if (!(/^(y|yes|да)$/.test(yes))) {
+          return A(L({ en:'We need your consent to continue. Type "yes" if you agree.',
+                       ru:'Нужно согласие, чтобы продолжить. Напишите "да", если согласны.' }));
+        }
+        // Create registration + save rules in one go
+        try{
+          // 1) row in Registrations
+          var sh = ensureRegSheet_();
+          var id = Utilities.getUuid();
+          var token = makeToken_();
+          sh.appendRow([
+            new Date(), id, st.payload.team, st.payload.channel_url, st.payload.playlist_url,
+            st.payload.contact, st.payload.country, (st.payload.city||''), token, 'new', ''
+          ]);
+          // 2) save rules
+          var shR = ensureRulesSheet_();
+          shR.appendRow([
+            new Date(), id, st.payload.team, st.payload.country, (st.payload.city||''),
+            st.payload.channel_url, st.payload.playlist_url, st.payload.rules_text.length, st.payload.rules_text
+          ]);
+          st.step = 10;
+          return {
+            ok: true,
+            done: true,
+            id: id,
+            verify_token: token,
+            msg: L({
+              en: 'Application saved. Your token: '+token+'. Paste it into your playlist description.',
+              ru: 'Заявка сохранена. Ваш токен: '+token+'. Вставьте его в описание плейлиста.'
+            }),
+            state: st
+          };
+        }catch(err2){
+          try{ logErr_('handleRegistrationDialog_/finalize', err2, { state:st }); }catch(_){}
+          return { ok:false, error:String(err2 && err2.message || err2), state:st };
+        }
+      }
+      default:
+        st = { step:0, payload:{}, lang:'' };
+        return A('Choose language: English or Russian?');
+    }
+  }catch(err){
+    try{ logErr_('handleRegistrationDialog_', err, { data:data }); }catch(_){}
+    return { ok:false, error:String(err && err.message || err) };
+  }
 }
+
+/** Compatibility: old single-phase form path just calls init */
+function handleRegistration_(data){ return registerInit_(data); }
