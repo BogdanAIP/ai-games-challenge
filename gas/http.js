@@ -1,140 +1,73 @@
-/** ======================= http.gs (JSONP + POST) =======================
- * GET:  JSONP (?callback=...&payload=<JSON>) — сайт/админ-панель
- * POST: обычный JSON                          — тесты/скрипты/cron
- * Примечание: в GAS нельзя вешать свои CORS-заголовки.
- * ===================================================================== */
+/** =========================== http.js ===========================
+ * JSONP endpoint: doGet?callback=cb&payload={...}
+ * Маршрутизирует action и возвращает cb(<json>);
+ * ===============================================================*/
 
-/* --------- helper: JSON --------- */
-function httpJson_(obj){
-  return ContentService
-    .createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-/* --------- Preflight (OPTIONS) --------- */
-function doOptions(e){
-  return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
-}
-
-/* --------- GET: JSONP роутер --------- */
 function doGet(e){
-  var cb = e && e.parameter && e.parameter.callback || '';
-  if (!cb){
-    // healthcheck без JSONP
-    return httpJson_({ ok:true, service:'aigc-gas', pong:new Date().toISOString() });
-  }
-
-  var raw = e && e.parameter && e.parameter.payload || '';
-  var data = {};
   try{
-    data = raw ? JSON.parse(raw) : {};
-  }catch(_){
-    return ContentService.createTextOutput(
-      cb+'('+JSON.stringify({ ok:false, error:'Bad JSONP payload' })+');'
-    ).setMimeType(ContentService.MimeType.JAVASCRIPT);
-  }
+    var cb = (e && e.parameter && e.parameter.callback) || 'cb';
+    var payloadRaw = (e && e.parameter && e.parameter.payload) || '{}';
+    var data = {};
+    try{ data = JSON.parse(payloadRaw); }catch(_){ data = {}; }
+    var action = (data.action||'').toString().trim();
 
-  var resp;
-  try{
-    switch (data.action){
+    var resp = { ok:false, error:'Unknown action' };
+
+    switch (action){
       case 'ping':
-        resp = { ok:true, pong:new Date().toISOString() };
+        resp = { ok:true, pong: new Date().toISOString() };
         break;
 
-      // ---------- Публичные JSONP-действия ----------
-      case 'faq':
-        resp = handleFaq_(data);
-        break;
-
-      // НУЖНО для reg-бота на странице регистрации (site/app.regbot.js)
-      case 'register':
-        resp = handleRegistrationDialog_(data);
-        break;
-
-      // прямой сабмит из формы (на случай JSONP)
-      case 'register_form':
-        resp = handleRegistration_(data);
-        break;
-
-      // Публичные JSONP: контент/лидерборд
+      // контент / лидерборд
       case 'content':
-        resp = handleContent_(data);
+        if (typeof handleContent_ === 'function') resp = handleContent_(data);
+        else resp = { ok:false, error:'content handler missing' };
         break;
 
       case 'lb_refresh':
-        resp = handleLeaderboardRefresh_();
+        if (typeof handleLeaderboardRefresh_ === 'function') resp = handleLeaderboardRefresh_();
+        else resp = { ok:false, error:'lb refresh missing' };
         break;
 
-      // ---------- Админ JSONP-действия (по секрету) ----------
-      case 'init_project': {
-        var secret = PropertiesService.getScriptProperties().getProperty('SEED_SECRET') || '';
-        if ((data.secret||'') !== secret) { resp = { ok:false, error:'forbidden' }; break; }
-        initProject_();
-        resp = { ok:true, msg:'initProject_ done' };
+      // регистрация — старые пути (оставляем для совместимости)
+      case 'register':
+        if (typeof handleRegistrationDialog_ === 'function') resp = handleRegistrationDialog_(data);
+        else resp = { ok:false, error:'register dialog missing' };
         break;
-      }
-      case 'seed_all': {
-        var secret2 = PropertiesService.getScriptProperties().getProperty('SEED_SECRET') || '';
-        if ((data.secret||'') !== secret2) { resp = { ok:false, error:'forbidden' }; break; }
-        resp = seedAll_();
+
+      case 'register_form':
+        if (typeof handleRegistration_ === 'function') resp = handleRegistration_(data);
+        else resp = { ok:false, error:'register form missing' };
         break;
-      }
+
+      // НОВОЕ: двухфазная регистрация + чанки правил
+      case 'register_init':
+        if (typeof registerInit_ === 'function') resp = registerInit_(data);
+        else resp = { ok:false, error:'register_init missing' };
+        break;
+
+      case 'rules_put':
+        if (typeof rulesPut_ === 'function') resp = rulesPut_(data);
+        else resp = { ok:false, error:'rules_put missing' };
+        break;
+
+      case 'rules_commit':
+        if (typeof rulesCommit_ === 'function') resp = rulesCommit_(data);
+        else resp = { ok:false, error:'rules_commit missing' };
+        break;
 
       default:
-        resp = { ok:false, error:'Unknown action' };
+        resp = { ok:false, error:'Unknown action: ' + action };
     }
+
+    var out = cb + '(' + JSON.stringify(resp) + ');';
+    return ContentService.createTextOutput(out)
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+
   }catch(err){
-    try{ logErr_('doGet(JSONP)', err, { data:data }); }catch(_){}
-    resp = { ok:false, error:String(err && err.message || err) };
-  }
-
-  return ContentService
-    .createTextOutput(cb+'('+JSON.stringify(resp)+');')
-    .setMimeType(ContentService.MimeType.JAVASCRIPT);
-}
-
-/* --------- POST: обычный JSON --------- */
-function doPost(e){
-  try{
-    if (!e || !e.postData || !e.postData.contents){
-      return httpJson_({ ok:false, error:'Empty body' });
-    }
-    var data;
-    try{ data = JSON.parse(e.postData.contents); }
-    catch(_){ return httpJson_({ ok:false, error:'Bad JSON' }); }
-
-    switch (data.action){
-      case 'ping':         return httpJson_({ ok:true, pong:new Date().toISOString() });
-      case 'version':      return httpJson_({ ok:true, version:'v1.0', time:new Date().toISOString() });
-
-      // одноразовые init/seed (по секрету)
-      case 'init_project': {
-        var secret = PropertiesService.getScriptProperties().getProperty('SEED_SECRET') || '';
-        if ((data.secret||'') !== secret) return httpJson_({ ok:false, error:'forbidden' });
-        initProject_();
-        return httpJson_({ ok:true, msg:'initProject_ done' });
-      }
-      case 'seed_all': {
-        var secret2 = PropertiesService.getScriptProperties().getProperty('SEED_SECRET') || '';
-        if ((data.secret||'') !== secret2) return httpJson_({ ok:false, error:'forbidden' });
-        var res = seedAll_();
-        return httpJson_(res);
-      }
-
-      // публичные бизнес-эндпоинты
-      case 'faq':          return httpJson_(handleFaq_(data));
-      case 'register':     return httpJson_(handleRegistrationDialog_(data));
-      case 'register_form':return httpJson_(handleRegistration_(data));
-      case 'gamepack':     return httpJson_(handleGamePack_(data));
-      case 'content':      return httpJson_(handleContent_(data));
-      case 'lb_refresh':   return httpJson_(handleLeaderboardRefresh_());
-      case 'tele_post':    return httpJson_(handleTelegramPost_(data));
-      case 'rag_refresh':  return httpJson_(ragRefresh_());
-
-      default:             return httpJson_({ ok:false, error:'Unknown action' });
-    }
-  }catch(err){
-    try{ logErr_('doPost', err, { raw:e && e.postData && e.postData.contents }); }catch(_){}
-    return httpJson_({ ok:false, error:String(err && err.message || err) });
+    var cb = (e && e.parameter && e.parameter.callback) || 'cb';
+    var out = cb + '(' + JSON.stringify({ ok:false, error:String(err && err.message || err) }) + ');';
+    return ContentService.createTextOutput(out)
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
 }
