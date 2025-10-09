@@ -56,6 +56,11 @@ function doGet(e){
         else resp = { ok:false, error:'rules_commit missing' };
         break;
 
+      case 'faq':
+        if (typeof handleFaq_ === 'function') resp = handleFaq_(data);
+        else resp = { ok:false, error:'faq handler missing' };
+        break;
+
       default:
         resp = { ok:false, error:'Unknown action: ' + action };
     }
