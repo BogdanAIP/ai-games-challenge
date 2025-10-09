@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Рейтинг участников — AI Games Challenge</title>
+<link rel="stylesheet" href="./styles.css"/>
+<style>
+  .page{max-width:1100px;margin:1.5rem auto;padding:0 1rem}
+  .hero h1{margin-bottom:.3rem}
+  .note{color:#687076}
+  .lb-controls{display:flex;gap:12px;align-items:center;margin:.75rem 0}
+  .lb-controls input{flex:1;padding:.6rem .8rem;border:1px solid #2b2f31;border-radius:10px;background:#111;color:#fff}
+  .lb-table-wrap{overflow:auto;border:1px solid #2b2f31;border-radius:12px}
+  .lb-table{width:100%;border-collapse:collapse}
+  .lb-table thead th{position:sticky;top:0;background:#0e0f10}
+  .lb-table th,.lb-table td{padding:.65rem .75rem;border-bottom:1px solid #2b2f31;text-align:left;white-space:nowrap}
+  .lb-table tbody tr:hover{background:#0f1112}
+  code{background:#1a1d1f;padding:.1rem .35rem;border-radius:6px}
+</style>
+<!-- если нет window.FORM_ENDPOINT — подхватим из site/public/config.json -->
+<script src="./public/config.json" type="application/json" id="site-config"></script>
+</head>
+<body>
+<header class="hero">
+  <h1 class="notranslate" translate="no">Рейтинг участников</h1>
+  <div class="cta-row"><a class="btn" href="./index.html">← Назад</a></div>
+</header>
+
+<main class="page">
+  <p class="note">Данные берутся из Google Apps Script (лист Registrations + Leaderboard). Можно искать по команде, токену, стране/городу.</p>
+  <div id="lb-root" class="note" style="min-height:3rem"></div>
+</main>
+
+<script src="./app.lb.js?v=rating2"></script>
+</body>
+</html>

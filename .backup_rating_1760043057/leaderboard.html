@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Participants Rating — AI Games Challenge</title>
+  <link rel="stylesheet" href="./styles.css"/>
+  <style>
+    .wrap{max-width:980px;margin:2rem auto;padding:0 1rem}
+    .controls{display:flex;gap:.75rem;align-items:center;margin:.5rem 0 1rem}
+    .search{flex:1}
+    .search input{
+      width:100%;padding:.75rem;border:1px solid #2b2f31;border-radius:10px;
+      background:#111;color:#fff;outline:none
+    }
+    .table{width:100%;border-collapse:collapse}
+    .table th,.table td{padding:.6rem .75rem;border-bottom:1px solid #222}
+    .table th{color:#9aa0a6;text-align:left;font-weight:600}
+    .muted{color:#687076}
+    .badge{display:inline-block;padding:.2rem .5rem;border-radius:.5rem;background:#1f2326;color:#cbd5e1;font-size:.85rem}
+  </style>
+</head>
+<body>
+<header class="hero">
+  <h1 class="notranslate" translate="no">AI Games Challenge</h1>
+  <p class="subtitle">Participants Rating</p>
+  <div class="cta-row"><a class="btn" href="./index.html">← Back</a></div>
+</header>
+
+<main class="wrap">
+  <div class="controls">
+    <div class="search"><input id="q" placeholder="Search by team, token, country or city"/></div>
+    <span id="count" class="badge">0 teams</span>
+  </div>
+
+  <table class="table" id="tbl">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Team</th>
+        <th>Country</th>
+        <th>Score</th>
+        <th class="muted">Likes</th>
+        <th class="muted">Views</th>
+        <th class="muted">ER</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <p id="err" class="muted"></p>
+</main>
+
+<script src="./app.lb.js?v=score1"></script>
+<script src="./public/config.json" type="application/json" id="site-config"></script>
+</body>
+</html>

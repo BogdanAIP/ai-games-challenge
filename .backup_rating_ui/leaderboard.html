@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AI Games Challenge — Leaderboard</title>
+<link rel="stylesheet" href="./styles.css"/>
+<script type="application/json" id="site-config">{"FORM_ENDPOINT":"https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec"}</script>
+</head>
+<body>
+<header class="hero">
+  <h1 class="notranslate" translate="no">Leaderboard</h1>
+  <div class="cta-row"><a class="btn" href="./index.html">← Back</a></div>
+</header>
+
+<main class="section prose" style="max-width:900px">
+  <p>Live data is pulled from Google Apps Script.</p>
+  <div id="lb-root" class="note" style="min-height:3rem"></div>
+</main>
+
+<footer class="footer"><p>© AI Games Challenge</p></footer>
+
+<!-- если на странице нет window.FORM_ENDPOINT — подхватим из site/public/config.json -->
+<script src="./app.lb.js?v=run1759749098"></script>
+</body>
+</html>

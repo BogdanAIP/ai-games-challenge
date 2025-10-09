@@ -5,75 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>AI Games Challenge — Registry & Leaderboard</title>
   <meta name="description" content="Season-based registry of AI-assisted hybrid sports with a transparent YouTube-driven leaderboard."/>
-  <meta name="keywords" content="AI Games Challenge, AI Sports, Hybrid Sports, Speedgate, Vortex Game, Street Ball Mix, YouTube Sports, Global People's Games"/>
-  
-  <!-- Open Graph -->
-  <meta property="og:type" content="website"/>
-  <meta property="og:url" content="https://bogdanaip.github.io/ai-games-challenge/"/>
-  <meta property="og:title" content="AI Games Challenge — Registry & Leaderboard"/>
-  <meta property="og:description" content="Season-based registry of AI-assisted hybrid sports with a transparent YouTube-driven leaderboard."/>
-  <meta property="og:image" content="./assets/og-image.jpg"/>
-  
-  <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary_large_image"/>
-  <meta name="twitter:url" content="https://bogdanaip.github.io/ai-games-challenge/"/>
-  <meta name="twitter:title" content="AI Games Challenge — Registry & Leaderboard"/>
-  <meta name="twitter:description" content="Season-based registry of AI-assisted hybrid sports with a transparent YouTube-driven leaderboard."/>
-  <meta name="twitter:image" content="./assets/og-image.jpg"/>
-  
-  <!-- Canonical URL -->
-  <link rel="canonical" href="https://bogdanaip.github.io/ai-games-challenge/"/>
-  
-  <!-- Языковые версии -->
-  <link rel="alternate" hreflang="x-default" href="https://bogdanaip.github.io/ai-games-challenge/"/>
-  <link rel="alternate" hreflang="en" href="https://bogdanaip.github.io/ai-games-challenge/"/>
-  <link rel="alternate" hreflang="ru" href="https://bogdanaip.github.io/ai-games-challenge/ru/"/>
-  
-  <!-- Favicon и иконки -->
-  <link rel="icon" type="image/x-icon" href="./assets/favicon.ico"/>
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon.png"/>
-  <link rel="manifest" href="./site.webmanifest"/>
-
-  <!-- Предзагрузка критических ресурсов -->
-  <link rel="preload" href="./styles.css?v=cover2" as="style"/>
-  <link rel="preload" href="./app.js" as="script"/>
-  
   <link rel="stylesheet" href="./styles.css?v=cover2"/>
-  
-  <!-- Schema.org разметка -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "SportsOrganization",
-    "name": "Global People's Games - AI Games Challenge",
-    "description": "Season-based registry of AI-assisted hybrid sports with a transparent YouTube-driven leaderboard",
-    "url": "https://bogdanaip.github.io/ai-games-challenge/",
-    "sameAs": [
-      "https://youtube.com/@ai_games_challenge"
-    ],
-    "sport": "AI-assisted hybrid sports",
-    "event": {
-      "@type": "SportsEvent",
-      "name": "AI Games Challenge — Season 1",
-      "startDate": "2025-10",
-      "description": "First season of AI-assisted hybrid sports competition",
-      "sport": "Hybrid Sports",
-      "competitor": {
-        "@type": "SportsTeam",
-        "name": "Various Teams"
-      }
-    }
-  }
-  </script>
 </head>
 <body>
-  <a class="skip-link" href="#main-content" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:999999;">Skip to main content</a>
-  
-  <header class="hero" role="banner">
+  <header class="hero">
     <h1 class="notranslate" translate="no" style="font-size:2.2em;margin-bottom:0.2em;">Global People's Games</h1>
     <h2 class="notranslate" translate="no" style="font-size:1.5em;margin-top:0;">AI Games Challenge</h2>
-    
-    <nav class="topnav" role="navigation" aria-label="Main navigation">
+<nav class="topnav">
   <a href="./join.html" class="btn">Join</a>
   <a href="./rules.html" class="btn">Rules</a>
   <a href="./leaderboard.html" class="btn">Participants Rating</a>
@@ -148,28 +86,10 @@
 
 </main>
 
-  <footer class="footer" role="contentinfo">
+  <footer class="footer">
     <p>Inspired by Speedgate (AKQA, 2019). This is an MVP demo.</p>
   </footer>
 
-  <!-- Core Web Vitals мониторинг -->
-  <script>
-    // Регистрация Service Worker
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then(registration => {
-          console.log('ServiceWorker registered');
-        }).catch(err => {
-          console.log('ServiceWorker registration failed: ', err);
-        });
-      });
-    }
-  </script>
-
-  <!-- Web Vitals и основные скрипты -->
-  <script src="./js/web-vitals.js" defer></script>
-  <script src="./app.js" defer></script>
-</body>
-</html>
+  <script src="./app.js"></script>
 </body>
 </html>

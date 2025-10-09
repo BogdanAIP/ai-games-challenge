@@ -64,8 +64,96 @@
 
   let STATE = { step:0, payload:{}, lang:'' };
 
-  function printQ(text){ const p = document.createElement('div'); p.className='regbot-q'; p.textContent=text; box.appendChild(p); box.scrollTop = box.scrollHeight; }
-  function printA(text){ const p = document.createElement('div'); p.className='regbot-a'; p.textContent=text; box.appendChild(p); box.scrollTop = box.scrollHeight; }
+  // Функции валидации
+  async function validateTeamName(name) {
+    if (!name) return 'Team name is required';
+    if (name.length < 3) return 'Team name must be at least 3 characters';
+    if (name.length > 30) return 'Team name must be less than 30 characters';
+    if (!/^[a-zA-Z0-9\s\-_]+$/.test(name)) {
+      return 'Team name can only contain letters, numbers, spaces, hyphens and underscores';
+    }
+    
+    try {
+      const check = await jsonpCall({
+        action: 'check_team',
+        team: name
+      });
+      if (!check.ok) return check.error || 'Team name is not available';
+      return '';
+    } catch(e) {
+      return 'Could not verify team name availability';
+    }
+  }
+
+  function validateYouTubeUrl(url, type) {
+    if (!url) return `${type} URL is required`;
+    try {
+      const u = new URL(url);
+      if (type === 'channel' && !u.pathname.includes('/@')) {
+        return 'Channel URL should contain channel handle (e.g., @yourteam)';
+      }
+      if (type === 'playlist' && !u.searchParams.get('list')) {
+        return 'Playlist URL should contain playlist ID';
+      }
+      return '';
+    } catch(e) {
+      return 'Invalid URL format';
+    }
+  }
+
+  function validateRules(text) {
+    if (!text) return 'Rules text is required';
+    const len = text.length;
+    if (len < 500) return `Rules text too short (${len}/500 characters minimum)`;
+    if (len > 3000) return `Rules text too long (${len}/3000 characters maximum)`;
+    return '';
+  }
+
+  function validateContact(contact) {
+    if (!contact) return 'Contact information is required';
+    if (contact.includes('@')) {
+      // Проверка email или telegram handle
+      if (contact.startsWith('@')) {
+        // Telegram handle
+        if (!/^@[a-zA-Z0-9_]{5,32}$/.test(contact)) {
+          return 'Invalid Telegram handle format';
+        }
+      } else {
+        // Email
+        if (!/^[^@]+@[^@]+\.[^@]+$/.test(contact)) {
+          return 'Invalid email format';
+        }
+      }
+    } else {
+      return 'Contact must be email or Telegram handle';
+    }
+    return '';
+  }
+
+  function printQ(text){ 
+    const p = document.createElement('div'); 
+    p.className='regbot-q'; 
+    p.textContent=text; 
+    box.appendChild(p); 
+    box.scrollTop = box.scrollHeight; 
+  }
+  
+  function printA(text){ 
+    const p = document.createElement('div'); 
+    p.className='regbot-a'; 
+    p.textContent=text; 
+    box.appendChild(p); 
+    box.scrollTop = box.scrollHeight; 
+  }
+  
+  function printError(text){
+    const p = document.createElement('div');
+    p.className = 'regbot-error';
+    p.style.color = '#ff4444';
+    p.textContent = '❌ ' + text;
+    box.appendChild(p);
+    box.scrollTop = box.scrollHeight;
+  }
 
   async function sendToServer(msg){
     return await jsonpCall({ action:'register', state: STATE, reply: msg });
@@ -75,19 +163,71 @@
     if (msg) printA(msg);
     try{
       const res = await sendToServer(msg||'');
-      if (!res || !res.ok){ printQ('Error: ' + (res && res.error || 'unknown')); return; }
+      if (!res || !res.ok){ 
+        printError(res && res.error || 'unknown error'); 
+        return; 
+      }
+
+      // Проверки на каждом шаге
+      if (res.state && res.state.step) {
+        let validationError = '';
+        const payload = res.state.payload || {};
+
+        switch(res.state.step) {
+          case 1: // Имя команды
+            validationError = await validateTeamName(msg);
+            break;
+          
+          case 2: // Страна
+            if (!msg || msg.length < 2) {
+              validationError = 'Please enter valid country code (e.g., US, UK, RU)';
+            }
+            break;
+          
+          case 3: // Контакт
+            validationError = validateContact(msg);
+            break;
+          
+          case 4: // YouTube канал
+            validationError = validateYouTubeUrl(msg, 'channel');
+            break;
+          
+          case 5: // Плейлист
+            validationError = validateYouTubeUrl(msg, 'playlist');
+            break;
+          
+          case 6: // Правила
+            validationError = validateRules(msg);
+            break;
+        }
+
+        if (validationError) {
+          printError(validationError);
+          // Повторяем текущий вопрос
+          if (res.ask) printQ(res.ask);
+          return;
+        }
+      }
 
       if (res.ask){
+        // Показываем прогресс
+        if (res.state && res.state.step) {
+          const progress = Math.min(Math.round((res.state.step / 6) * 100), 100);
+          printQ(`[Progress: ${progress}%]`);
+        }
+        
         printQ(res.ask);
         STATE = res.state || STATE;
         return;
       }
+
       if (res.done && res.verify_token){
+        printQ('✅ Registration completed successfully!');
         printQ(res.msg || ('Your token: ' + res.verify_token));
         STATE = res.state || STATE;
       }
     }catch(err){
-      printQ('Network error: ' + String(err.message||err));
+      printError('Network error: ' + String(err.message||err));
     }
   }
 

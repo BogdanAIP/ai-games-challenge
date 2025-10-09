@@ -1,0 +1,21 @@
+{
+  "name": "AI Games Challenge",
+  "short_name": "AI Games",
+  "description": "Season-based registry of AI-assisted hybrid sports with a transparent YouTube-driven leaderboard",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "icons": [
+    {
+      "src": "./assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
