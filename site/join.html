@@ -19,17 +19,20 @@
     .ok{color:#0a7a3d}
     .err{color:#b00020}
     .token-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}
-    .rules-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start}
-    #rules_text{height:260px;resize:vertical} /* same height as bot window */
-    .count{font-size:.85rem;color:#9aa0a6;margin-top:6px}
+
+    /* rules block: textarea full width, button on the next row aligned right */
+    .rules-row{display:grid;grid-template-columns:1fr;gap:8px;align-items:start}
+    #rules_text{height:260px;resize:vertical;width:100%}
+    #rulesSendBtn{justify-self:end}
+
     .inline-accent{color:#0a58ca}
     .inline-accent:hover{text-decoration:underline}
     #regbot-box{border:1px solid #2b2f31;border-radius:12px;padding:12px;height:260px;overflow:auto;background:#0e0f10;margin-top:8px}
     .regbot-q,.regbot-a{white-space:pre-wrap;margin:.35rem 0}
     .regbot-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-top:8px}
     #regbot-input{padding:.75rem;border:1px solid #2b2f31;border-radius:10px;background:#111;color:#fff}
+    .count{font-size:.85rem;color:#9aa0a6;margin-top:6px}
   </style>
-  <!-- CONFIG: FORM_ENDPOINT для фронта -->
   <script type="application/json" id="site-config">{"FORM_ENDPOINT":"https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec"}</script>
 </head>
 <body>
@@ -114,8 +117,7 @@
   </section>
 </main>
 
-<!-- Scripts -->
-<script src="./app.join.js?v=rules-ui-260-3"></script>
-<script src="./app.regbot.js?v=rules-ui-260-3"></script>
+<script src="./app.join.js?v=rules-fullwidth"></script>
+<script src="./app.regbot.js?v=rules-fullwidth"></script>
 </body>
 </html>
