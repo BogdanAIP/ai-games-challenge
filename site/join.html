@@ -76,16 +76,13 @@
     <p class="note">Paste the token into your playlist description after registration.</p>
 
     <div class="rules-row">
-      <label style="margin:0">Rules (plain text, up to 3000 characters)
-        <textarea id="rules_text" name="rules_text" maxlength="3000" placeholder="Paste short version of your rules here (English or Russian)."></textarea>
+      <label style="margin:0">Rules (500–3000 characters)
+        <textarea id="rules_text" name="rules_text" minlength="500" maxlength="3000" required placeholder="Paste short version of your rules here (English or Russian)."></textarea>
         <div class="count"><span id="rules_count">0</span>/3000</div>
       </label>
       <button class="btn" type="button" id="rulesSendBtn" title="Send rules (submits the form)">Send rules</button>
     </div>
 
-    <label>Notes (optional)
-      <textarea name="notes" rows="4" placeholder="Anything else we should know?"></textarea>
-    </label>
 
     <div class="consents" style="margin-top:12px">
       <label style="display:flex;gap:.6rem;align-items:center;margin:.25rem 0;">
