@@ -3,76 +3,61 @@
  * Маршрутизирует action и возвращает cb(<json>);
  * ===============================================================*/
 
-function doGet(e){
-  try{
+function doGet(e) {
+  try {
     var cb = (e && e.parameter && e.parameter.callback) || 'cb';
     var payloadRaw = (e && e.parameter && e.parameter.payload) || '{}';
     var data = {};
-    try{ data = JSON.parse(payloadRaw); }catch(_){ data = {}; }
+    try { data = JSON.parse(payloadRaw); } catch(_){ data = {}; }
     var action = (data.action||'').toString().trim();
-
-    var resp = { ok:false, error:'Unknown action' };
-
-    switch (action){
-      case 'ping':
-        resp = { ok:true, pong: new Date().toISOString() };
-        break;
-
-      // контент / лидерборд
-      case 'content':
-        if (typeof handleContent_ === 'function') resp = handleContent_(data);
-        else resp = { ok:false, error:'content handler missing' };
-        break;
-
-      case 'lb_refresh':
-        if (typeof handleLeaderboardRefresh_ === 'function') resp = handleLeaderboardRefresh_();
-        else resp = { ok:false, error:'lb refresh missing' };
-        break;
-
-      // регистрация — старые пути (оставляем для совместимости)
-      case 'register':
-        if (typeof handleRegistrationDialog_ === 'function') resp = handleRegistrationDialog_(data);
-        else resp = { ok:false, error:'register dialog missing' };
-        break;
-
-      case 'register_form':
-        if (typeof handleRegistration_ === 'function') resp = handleRegistration_(data);
-        else resp = { ok:false, error:'register form missing' };
-        break;
-
-      // НОВОЕ: двухфазная регистрация + чанки правил
-      case 'register_init':
-        if (typeof registerInit_ === 'function') resp = registerInit_(data);
-        else resp = { ok:false, error:'register_init missing' };
-        break;
-
-      case 'rules_put':
-        if (typeof rulesPut_ === 'function') resp = rulesPut_(data);
-        else resp = { ok:false, error:'rules_put missing' };
-        break;
-
-      case 'rules_commit':
-        if (typeof rulesCommit_ === 'function') resp = rulesCommit_(data);
-        else resp = { ok:false, error:'rules_commit missing' };
-        break;
-
-      case 'faq':
-        if (typeof handleFaq_ === 'function') resp = handleFaq_(data);
-        else resp = { ok:false, error:'faq handler missing' };
-        break;
-
-      default:
-        resp = { ok:false, error:'Unknown action: ' + action };
+    
+    // Проверка доступности API
+    if (typeof ScriptApp === 'undefined' || typeof ContentService === 'undefined') {
+      return jsonResponse_(cb, { ok:false, error:'API services unavailable' });
     }
 
-    var out = cb + '(' + JSON.stringify(resp) + ');';
-    return ContentService.createTextOutput(out)
-      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    switch (action) {
+      case 'ping':
+        return jsonResponse_(cb, { ok:true, pong: new Date().toISOString() });
 
-  }catch(err){
-    var cb = (e && e.parameter && e.parameter.callback) || 'cb';
-    var out = cb + '(' + JSON.stringify({ ok:false, error:String(err && err.message || err) }) + ');';
-    return ContentService.createTextOutput(out)
-      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+      case 'faq':
+        if (typeof handleFaq_ === 'function')
+          return jsonResponse_(cb, handleFaq_(data));
+        return jsonResponse_(cb, { ok:false, error:'faq handler missing' });
+
+      case 'register':
+        if (typeof handleRegistrationDialog_ === 'function')
+          return jsonResponse_(cb, handleRegistrationDialog_(data));
+        return jsonResponse_(cb, { ok:false, error:'register dialog missing' });
+
+      case 'register_init':
+        if (typeof registerInit_ === 'function')
+          return jsonResponse_(cb, registerInit_(data));
+        return jsonResponse_(cb, { ok:false, error:'register_init missing' });
+
+      case 'rules_put':
+        if (typeof rulesPut_ === 'function')
+          return jsonResponse_(cb, rulesPut_(data));
+        return jsonResponse_(cb, { ok:false, error:'rules_put missing' });
+
+      case 'rules_commit':
+        if (typeof rulesCommit_ === 'function')
+          return jsonResponse_(cb, rulesCommit_(data));
+        return jsonResponse_(cb, { ok:false, error:'rules_commit missing' });
+
+      default:
+        return jsonResponse_(cb, { ok:false, error:'Unknown action: ' + action });
+    }
+  } catch(err) {
+    return jsonResponse_((e && e.parameter && e.parameter.callback) || 'cb',
+      { ok:false, error:String(err && err.message || err) }
+    );
   }
+}
+
+function jsonResponse_(callback, data) {
+  if (!callback) callback = 'cb';
+  return ContentService
+    .createTextOutput(callback + '(' + JSON.stringify(data || {}) + ');')
+    .setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
