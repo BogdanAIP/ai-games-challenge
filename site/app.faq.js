@@ -1,8 +1,16 @@
 (function(){
-  if (!window.FORM_ENDPOINT) {
-    window.FORM_ENDPOINT = "https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec";
+  function getConfig(){
+    if (window.FORM_ENDPOINT) return window.FORM_ENDPOINT;
+    try{
+      const el = document.getElementById('site-config');
+      if (el && el.textContent){
+        const cfg = JSON.parse(el.textContent);
+        if (cfg && cfg.FORM_ENDPOINT) return cfg.FORM_ENDPOINT;
+      }
+    }catch(_){}
+    return '';
   }
-  window.FORM_ENDPOINT = String(window.FORM_ENDPOINT).replace(/^'+|'+$/g, '');
+  window.FORM_ENDPOINT = getConfig();
 })();
 
 function $(s){ return document.querySelector(s); }
