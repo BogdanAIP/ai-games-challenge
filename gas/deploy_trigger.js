@@ -4,9 +4,19 @@ function doDeployTrigger() {
     throw new Error('UrlFetchApp not available');
   }
 
+  // Обновляем базу знаний FAQ
+  try {
+    Logger.log('Updating FAQ knowledge base...');
+    var result = ragRefresh_();
+    Logger.log('RAG refresh result:', result);
+  } catch(err) {
+    console.error('RAG refresh failed:', err);
+  }
+
   // Базовая проверка бота
   try {
-    handleFaq_({ question: 'ping' });
+    var testResult = handleFaq_({ question: 'Что такое AI Games Challenge?' });
+    Logger.log('FAQ test response:', testResult);
   } catch(err) {
     console.error('FAQ handler test failed:', err);
   }

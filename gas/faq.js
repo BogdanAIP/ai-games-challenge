@@ -20,13 +20,10 @@ function handleFaq_(data){
   var lang = detectLang_(q); // 'ru' | 'en'
   var ctx  = ragContextFor_(q, 5, 3500); // было 3,1800 → стало шире
 
-  var sys = (lang === 'ru')
-    ? "Ты — помощник AI Games Challenge. Отвечай строго на русском языке. Пиши кратко и по делу, но информативно. Если вопрос о правилах/регистрации/сезонах — используй предоставленный контекст."
-    : "You are the AI Games Challenge assistant. Answer strictly in English. Be concise but informative. If the question is about rules/registration/seasons — use the provided context.";
-
+  var sys = (lang === 'ru') ? FAQ_PROMPT_RU : FAQ_PROMPT_EN;
   var user = (lang === 'ru')
-    ? ("Вопрос: " + q + (ctx ? ("\n\nКонтекст:\n" + ctx) : ""))
-    : ("Question: " + q + (ctx ? ("\n\nContext:\n" + ctx) : ""));
+    ? ("Вопрос: " + q + (ctx ? ("\n\nКонтекст из базы знаний:\n" + ctx) : ""))
+    : ("Question: " + q + (ctx ? ("\n\nKnowledge base context:\n" + ctx) : ""));
 
   var resp;
   try{
