@@ -200,6 +200,20 @@ function rulesCommit_(data){
 
     sh.getRange(rowIndex+1, iStatus+1).setValue('new');
     _clearChunks_(id);
+    
+    // уведомления: email + Telegram канал
+    try{
+      notifyOnRegistration_({
+        team: row[iTeam]||'',
+        channel_url: row[iCh]||'',
+        playlist_url: row[iPl]||'',
+        country: row[iCountry]||'',
+        city: row[iCity]||'',
+        contact: row[iContact]||'',
+        verify_token: row[iToken]||''
+      });
+    }catch(_){}
+
     return { ok:true, id:id, rules_len:text.length, status:'new', verify_token: row[iToken] };
   }catch(err){
     try{ logErr_('rulesCommit_', err, { data:data }); }catch(_){}

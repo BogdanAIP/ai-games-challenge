@@ -6,16 +6,19 @@
   <title>Participants Rating — AI Games Challenge</title>
   <link rel="stylesheet" href="./styles.css"/>
   <style>
-    .wrap{max-width:960px;margin:2rem auto;padding:0 1rem}
-    .search-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
-    table{width:100%;border-collapse:separate;border-spacing:0 6px}
-    th,td{padding:.6rem .8rem;background:#0e0f10;border:1px solid #2b2f31}
-    th{background:#111;border-color:#2b2f31}
-    tr td:first-child, tr th:first-child{border-top-left-radius:10px;border-bottom-left-radius:10px}
-    tr td:last-child, tr th:last-child{border-top-right-radius:10px;border-bottom-right-radius:10px}
+    .wrap{max-width:980px;margin:2rem auto;padding:0 1rem}
+    .controls{display:flex;gap:.75rem;align-items:center;margin:.5rem 0 1rem}
+    .search{flex:1}
+    .search input{
+      width:100%;padding:.75rem;border:1px solid #2b2f31;border-radius:10px;
+      background:#111;color:#fff;outline:none
+    }
+    .table{width:100%;border-collapse:collapse}
+    .table th,.table td{padding:.6rem .75rem;border-bottom:1px solid #222}
+    .table th{color:#9aa0a6;text-align:left;font-weight:600}
     .muted{color:#687076}
+    .badge{display:inline-block;padding:.2rem .5rem;border-radius:.5rem;background:#1f2326;color:#cbd5e1;font-size:.85rem}
   </style>
-  <script type="application/json" id="site-config">{"FORM_ENDPOINT":"https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec"}</script>
 </head>
 <body>
 <header class="hero">
@@ -25,20 +28,30 @@
 </header>
 
 <main class="wrap">
-  <div class="search-row">
-    <input id="q" placeholder="Search by team, token, country or city"/>
-    <button class="btn" id="refreshBtn" type="button">Refresh</button>
+  <div class="controls">
+    <div class="search"><input id="q" placeholder="Search by team, token, country or city"/></div>
+    <span id="count" class="badge">0 teams</span>
   </div>
 
-  <table id="lb">
-    <thead><tr><th>#</th><th>Team</th><th>Views</th><th>Likes</th><th>ER</th><th class="muted">Token</th><th class="muted">Region</th></tr></thead>
+  <table class="table" id="tbl">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Team</th>
+        <th>Country</th>
+        <th>Score</th>
+        <th class="muted">Likes</th>
+        <th class="muted">Views</th>
+        <th class="muted">ER</th>
+      </tr>
+    </thead>
     <tbody></tbody>
   </table>
 
-  <p id="lb-msg" class="muted"></p>
+  <p id="err" class="muted"></p>
 </main>
 
-<script src="./app.lb.js?v=rating2"></script>
+<script src="./app.lb.js?v=score1"></script>
 <script src="./public/config.json" type="application/json" id="site-config"></script>
 </body>
 </html>

@@ -1,108 +1,115 @@
 (function(){
-  async function loadEndpoint(){
+  function getConfig(){
     if (window.FORM_ENDPOINT) return window.FORM_ENDPOINT;
     try{
-      const el = document.getElementById('site-config');
-      if (el && el.type === 'application/json'){
-        const cfg = JSON.parse(el.textContent || '{}');
-        if (cfg && cfg.FORM_ENDPOINT) {
-          window.FORM_ENDPOINT = cfg.FORM_ENDPOINT;
-          return window.FORM_ENDPOINT;
-        }
-      }
+      var el=document.getElementById('site-config');
+      if(el&&el.textContent){var cfg=JSON.parse(el.textContent); if(cfg&&cfg.FORM_ENDPOINT) return cfg.FORM_ENDPOINT;}
     }catch(_){}
-    throw new Error('FORM_ENDPOINT not set');
+    return '';
   }
-
-  function jsonpCall(endpoint, payload){
-    return new Promise((resolve, reject)=>{
-      const cb = 'cb_' + Math.random().toString(36).slice(2);
-      const s  = document.createElement('script');
-      const u  = new URL(endpoint);
-      u.searchParams.set('callback', cb);
-      u.searchParams.set('payload', JSON.stringify(payload));
-      let done=false, to;
-      function cleanup(){ s.remove(); delete window[cb]; to && clearTimeout(to); }
-      window[cb] = (resp)=>{ if(done) return; done=true; cleanup(); resolve(resp); };
-      s.onerror  = ()=>{ if(done) return; done=true; cleanup(); reject(new Error('JSONP error')); };
-      to = setTimeout(()=>{ if(done) return; done=true; cleanup(); reject(new Error('Timeout')); }, 20000);
-      s.src = u.toString();
+  function jsonpCall(payload){
+    return new Promise(function(resolve,reject){
+      var cb='cb_'+Math.random().toString(36).slice(2);
+      var ep=getConfig(); if(!ep) return reject(new Error('FORM_ENDPOINT not set'));
+      var u=new URL(ep);
+      var s=document.createElement('script');
+      s.src=u.toString()+'?callback='+cb+'&payload='+encodeURIComponent(JSON.stringify(payload));
+      window[cb]=function(data){ resolve(data); cleanup(); };
+      s.onerror=function(){ reject(new Error('JSONP error')); cleanup(); };
       document.head.appendChild(s);
+      function cleanup(){ try{delete window[cb];}catch(_){}
+        try{s.remove();}catch(_){}
+      }
     });
   }
 
-  function $(sel, root){ return (root||document).querySelector(sel); }
-
-  function render(rows){
-    const tb = $('#lb tbody');
-    tb.innerHTML = '';
-    rows.forEach((r, i)=>{
-      const tr = document.createElement('tr');
-      const region = [r.country||'', r.city||''].filter(Boolean).join(', ');
-      tr.innerHTML = `
-        <td>${i+1}</td>
-        <td>${r.team||''}</td>
-        <td>${r.views||0}</td>
-        <td>${r.likes||0}</td>
-        <td>${r.er||0}</td>
-        <td class="muted">${r.verify_token||''}</td>
-        <td class="muted">${region}</td>
-      `;
-      tb.appendChild(tr);
-    });
-    $('#lb-msg').textContent = rows.length ? '' : 'No data yet.';
+  function computeScore(row){
+    // row: {team, views, likes, er, country?, city?, token?}
+    // Пока считаем score = likes. Позже легко заменить формулу.
+    var l = Number(row.likes||0);
+    if (isNaN(l)) l=0;
+    return l;
   }
 
-  function filterRows(rows, q){
-    const s = q.trim().toLowerCase();
-    if (!s) return rows;
-    return rows.filter(r=>{
-      return [r.team, r.verify_token, r.country, r.city].some(v=> String(v||'').toLowerCase().includes(s));
+  function denseRanks(sorted){
+    // sorted: массив по убыванию score
+    var prevScore=null, rank=0;
+    return sorted.map(function(r,i){
+      if (prevScore===null || r._score!==prevScore){ rank = rank + 1; prevScore = r._score; }
+      r._rank = rank;
+      return r;
     });
-  }
-
-  async function fetchData(){
-    const endpoint = await loadEndpoint();
-    // leaderboard for scores
-    const lb = await jsonpCall(endpoint, {action:'content', task:'leaderboard'});
-    // registrations for token/region enrichment (if available)
-    let regs = [];
-    try{
-      const r = await jsonpCall(endpoint, {action:'content', task:'registrations'});
-      if (r && r.ok && Array.isArray(r.items)) regs = r.items;
-    }catch(_){}
-    // merge by team (simple)
-    const regByTeam = Object.create(null);
-    regs.forEach(x=>{ if (x.team) regByTeam[x.team.toLowerCase()] = x; });
-
-    const rows = (lb && lb.ok && Array.isArray(lb.leaderboard) ? lb.leaderboard : []).map(x=>{
-      const extra = regByTeam[(x.team||'').toLowerCase()] || {};
-      return Object.assign({}, x, {
-        verify_token: extra.verify_token || '',
-        country: extra.country || '',
-        city: extra.city || ''
-      });
-    });
-    return rows;
   }
 
   async function main(){
-    const q = $('#q');
-    const refreshBtn = $('#refreshBtn');
+    var q = document.getElementById('q');
+    var tbl = document.getElementById('tbl').querySelector('tbody');
+    var err = document.getElementById('err');
+    var count = document.getElementById('count');
+    err.textContent='';
 
-    async function reload(){
-      try{
-        const rows = await fetchData();
-        render(filterRows(rows, q.value||''));
-      }catch(err){
-        $('#lb-msg').textContent = 'Network error: ' + (err && err.message || err);
+    try{
+      // 1) тащим лиду
+      var res = await jsonpCall({ action:'content', task:'leaderboard' });
+      if (!res || !res.ok) throw new Error(res && res.error || 'content error');
+
+      // 2) нормализуем строки
+      var rows = (res.leaderboard||[]).map(function(x){
+        var r = {
+          team: String(x.team||'').trim(),
+          views: Number(x.views||0)||0,
+          likes: Number(x.likes||0)||0,
+          er: (typeof x.er==='number' ? x.er : Number(String(x.er||'').replace(',','.'))||0),
+          country: x.country||'',
+          city: x.city||'',
+          token: x.verify_token||''
+        };
+        r._score = computeScore(r);
+        return r;
+      });
+
+      // 3) сортировка по score убыв.
+      rows.sort(function(a,b){ return b._score - a._score; });
+
+      // 4) глобальные ранги (dense)
+      rows = denseRanks(rows);
+
+      // 5) отрисовка + фильтр
+      function render(list){
+        tbl.innerHTML='';
+        list.forEach(function(r){
+          var tr=document.createElement('tr');
+          tr.innerHTML = '<td>'+r._rank+'</td>'
+                       + '<td>'+escapeHtml(r.team)+'</td>'
+                       + '<td>'+escapeHtml([r.country,r.city].filter(Boolean).join(', '))+'</td>'
+                       + '<td>'+r._score+'</td>'
+                       + '<td class="muted">'+r.likes+'</td>'
+                       + '<td class="muted">'+r.views+'</td>'
+                       + '<td class="muted">'+r.er+'</td>';
+          tbl.appendChild(tr);
+        });
+        count.textContent = list.length+' teams';
       }
+      function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+      function applyFilter(){
+        var needle = String(q.value||'').trim().toLowerCase();
+        if (!needle){ render(rows); return; }
+        var filtered = rows.filter(function(r){
+          return r.team.toLowerCase().includes(needle)
+              || String(r.token||'').toLowerCase().includes(needle)
+              || String(r.country||'').toLowerCase().includes(needle)
+              || String(r.city||'').toLowerCase().includes(needle);
+        });
+        // Важно: показываем глобальный _rank (уже посчитан по всему списку)
+        render(filtered);
+      }
+
+      q && q.addEventListener('input', applyFilter);
+      render(rows);
+    }catch(e){
+      err.textContent = 'Network error: ' + (e.message||e);
     }
-
-    q.addEventListener('input', reload);
-    refreshBtn.addEventListener('click', reload);
-    await reload();
   }
-
   document.addEventListener('DOMContentLoaded', main);
 })();
