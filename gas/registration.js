@@ -1,10 +1,10 @@
 /** =========================== registration.js ===========================
- * Two-phase registration + dialog bot (EN/RU).
- * Web form:
- *   - register_init -> rules_put (chunks) -> rules_commit
- * Bot:
- *   - handleRegistrationDialog_: collects fields incl. rules_text (500–3000),
- *     then writes to Registrations + Rules directly and returns verify_token.
+ * No-duplicate registration + notifications (Email + Telegram).
+ * Works with both: web two-phase (register_init / rules_put / rules_commit)
+ * and dialog bot (handleRegistrationDialog_).
+ * Duplicate keys: team (case-insensitive), channel_url (normalized),
+ * playlist_url, contact (case-insensitive).
+ * On duplicate: do NOT create new row; return existing id + verify_token.
  * ======================================================================= */
 
 function normalizeChannelUrl_(s){
@@ -42,7 +42,6 @@ function assert_(cond, msg, extra){
 }
 function makeToken_(){ var s = Utilities.getUuid().replace(/-/g,'').toUpperCase(); return s.slice(-8); }
 
-/** Sheets */
 function ensureRegSheet_(){
   var ss = SS_();
   var sh = ss.getSheetByName('Registrations');
@@ -60,7 +59,91 @@ function ensureRulesSheet_(){
   return sh;
 }
 
-/** ===== Two-phase API for the web form (kept as before) ===== */
+/** ==== Duplicate finder (case-insens for team/contact; normalized url for channel) ==== */
+function _lc(s){ return String(s||'').trim().toLowerCase(); }
+function findDuplicateRegistration_(team, chUrl, plUrl, contact){
+  var sh = ensureRegSheet_();
+  var vals = sh.getDataRange().getValues();
+  if (!vals || vals.length <= 1) return null;
+
+  var keyTeam = _lc(team);
+  var keyContact = _lc(contact);
+  var keyCh = normalizeChannelUrl_(chUrl);
+  var keyPl = String(plUrl||'').trim();
+
+  // column indices under enforced header
+  var iId=1, iTeam=2, iCh=3, iPl=4, iContact=5, iCountry=6, iCity=7, iToken=8, iStatus=9, iNotes=10;
+
+  for (var r=1; r<vals.length; r++){
+    var row = vals[r];
+    var rowTeam = _lc(row[iTeam]);
+    var rowContact = _lc(row[iContact]);
+    var rowCh = normalizeChannelUrl_(row[iCh]);
+    var rowPl = String(row[iPl]||'').trim();
+
+    if (rowTeam && keyTeam && rowTeam === keyTeam){
+      return { by:'team', id:row[iId], token:row[iToken], status:row[iStatus], team:row[iTeam] };
+    }
+    if (rowCh && keyCh && rowCh === keyCh){
+      return { by:'channel_url', id:row[iId], token:row[iToken], status:row[iStatus], team:row[iTeam] };
+    }
+    if (rowPl && keyPl && rowPl === keyPl){
+      return { by:'playlist_url', id:row[iId], token:row[iToken], status:row[iStatus], team:row[iTeam] };
+    }
+    if (rowContact && keyContact && rowContact === keyContact){
+      return { by:'contact', id:row[iId], token:row[iToken], status:row[iStatus], team:row[iTeam] };
+    }
+  }
+  return null;
+}
+
+/** ==== Notifications (best-effort; never fail the flow) ==== */
+function _prop(k){ try{ return PropertiesService.getScriptProperties().getProperty(k)||''; }catch(_){ return ''; } }
+function notifyOnRegistration_(rec){
+  try{
+    var adminEmail = _prop('ADMIN_EMAIL');
+    var toUser = '';
+    if (/@/.test(rec.contact||'')) toUser = String(rec.contact||'').trim();
+
+    var subject = '[AI Games] Registration received: ' + rec.team;
+    var body =
+      'Team: ' + rec.team + '\n' +
+      'Country/City: ' + (rec.country||'') + ' / ' + (rec.city||'') + '\n' +
+      'Channel: ' + rec.channel_url + '\n' +
+      'Playlist: ' + rec.playlist_url + '\n' +
+      'Verify token: ' + rec.verify_token + '\n' +
+      'Contact: ' + rec.contact + '\n' +
+      'Status: ' + (rec.status||'new') + '\n';
+
+    // email to user
+    if (toUser){
+      try{ MailApp.sendEmail({ to: toUser, subject: subject, htmlBody: body.replace(/\n/g,'<br>') }); }catch(_){}
+    }
+    // email to admin
+    if (adminEmail){
+      try{ MailApp.sendEmail({ to: adminEmail, subject: subject, htmlBody: body.replace(/\n/g,'<br>') }); }catch(_){}
+    }
+    // telegram channel
+    var tgToken = _prop('TELEGRAM_BOT_TOKEN');
+    var tgChat  = _prop('TELEGRAM_CHAT_ID');
+    if (tgToken && tgChat){
+      var text =
+        '🟢 New team registered\n' +
+        'Team: ' + rec.team + '\n' +
+        'Country/City: ' + (rec.country||'') + ' / ' + (rec.city||'') + '\n' +
+        'Playlist: ' + rec.playlist_url + '\n' +
+        'Token: ' + rec.verify_token;
+      try{
+        UrlFetchApp.fetch('https://api.telegram.org/bot'+tgToken+'/sendMessage', {
+          method:'post',
+          payload:{ chat_id: tgChat, text: text, disable_web_page_preview:true }
+        });
+      }catch(_){}
+    }
+  }catch(_){}
+}
+
+/** ===== Web two-phase API ===== */
 function registerInit_(data){
   try{
     data = data || {};
@@ -83,10 +166,17 @@ function registerInit_(data){
     assert_(acceptRules,  'Missing consent: accept_rules');
     assert_(acceptPolicy, 'Missing consent: accept_policy');
 
+    // dedup
+    var dup = findDuplicateRegistration_(team, chUrl, plUrl, contact);
+    if (dup){
+      return { ok:true, duplicate:true, id:dup.id, verify_token:dup.token, team:dup.team, status:dup.status };
+    }
+
     var sh = ensureRegSheet_();
     var id = Utilities.getUuid();
     var token = makeToken_();
     sh.appendRow([ new Date(), id, team, chUrl, plUrl, contact, country, city, token, 'draft', '' ]);
+    // (уведомления шлём после commit правил, чтобы не дублировать)
     return { ok:true, id:id, verify_token:token, team:team, channel_url:chUrl, playlist_url:plUrl, country:country, city:city, status:'draft' };
   }catch(err){
     try{ logErr_('registerInit_', err, { data:data }); }catch(_){}
@@ -96,9 +186,9 @@ function registerInit_(data){
   }
 }
 
-/** Chunk buffer for WEB flow (kept) */
+/** chunk buffer for web flow */
 function _chunkKey_(id){ return 'rules_chunks:' + id; }
-function _getChunks_(id){ var raw = PropertiesService.getScriptProperties().getProperty(_chunkKey_(id)) || '[]'; try { return JSON.parse(raw); } catch(_){ return []; } }
+function _getChunks_(id){ var raw = PropertiesService.getScriptProperties().getProperty(_chunkKey_(id)) || '[]'; try{ return JSON.parse(raw); }catch(_){ return []; } }
 function _setChunks_(id, arr){ PropertiesService.getScriptProperties().setProperty(_chunkKey_(id), JSON.stringify(arr||[])); }
 function _clearChunks_(id){ PropertiesService.getScriptProperties().deleteProperty(_chunkKey_(id)); }
 
@@ -119,6 +209,7 @@ function rulesPut_(data){
     return { ok:false, error:String(err && err.message || err) };
   }
 }
+
 function rulesCommit_(data){
   try{
     data = data || {};
@@ -128,7 +219,7 @@ function rulesCommit_(data){
     var sh = ensureRegSheet_();
     var vals = sh.getDataRange().getValues();
     if (!vals || vals.length <= 1) throw new Error('No registrations');
-    var iId = 1, iTeam=2, iCh=3, iPl=4, iContact=5, iCountry=6, iCity=7, iToken=8, iStatus=9;
+    var iId=1, iTeam=2, iCh=3, iPl=4, iContact=5, iCountry=6, iCity=7, iToken=8, iStatus=9;
 
     var rowIndex = -1, row=null;
     for (var r=1; r<vals.length; r++){
@@ -149,6 +240,14 @@ function rulesCommit_(data){
     sh.getRange(rowIndex+1, iStatus+1).setValue('new'); // draft -> new
     _clearChunks_(id);
 
+    // notify (first-time only; for duplicates we never got here)
+    try{
+      notifyOnRegistration_({
+        id:id, team:row[iTeam], channel_url:row[iCh], playlist_url:row[iPl],
+        country:row[iCountry], city:row[iCity], verify_token:row[iToken], contact:row[iContact], status:'new'
+      });
+    }catch(_){}
+
     return { ok:true, id:id, rules_len:text.length, status:'new', verify_token: row[iToken] };
   }catch(err){
     try{ logErr_('rulesCommit_', err, { data:data }); }catch(_){}
@@ -156,7 +255,7 @@ function rulesCommit_(data){
   }
 }
 
-/** ===== Dialog bot (action: 'register') — EN/RU, mandatory rules_text ===== */
+/** ===== Dialog bot (EN/RU), mandatory rules (500–3000), no duplicates ===== */
 function handleRegistrationDialog_(data){
   try{
     data = data || {};
@@ -170,7 +269,7 @@ function handleRegistrationDialog_(data){
       case 0:
         st = { step:1, payload:{}, lang:'' };
         return A('Choose language: English or Russian?');
-      case 1: { // language
+      case 1: {
         var r = reply.toLowerCase();
         if (/^en|english/i.test(r)) st.lang = 'en';
         else if (/^ru|рус/i.test(r)) st.lang = 'ru';
@@ -178,13 +277,13 @@ function handleRegistrationDialog_(data){
         st.step = 2;
         return A(L({ en:'What is your team name?', ru:'Как называется ваша команда?' }));
       }
-      case 2: { // team
+      case 2: {
         if (!reply) return A(L({ en:'Please enter a team name', ru:'Пожалуйста, укажите название команды' }));
         st.payload.team = reply; st.step=3;
         return A(L({ en:'Link to your YouTube channel (https://youtube.com/@handle or https://youtube.com/channel/ID):',
                      ru:'Ссылка на YouTube-канал (https://youtube.com/@handle или https://youtube.com/channel/ID):' }));
       }
-      case 3: { // channel
+      case 3: {
         var ch = normalizeChannelUrl_(reply);
         if (!isValidChannelUrl_(ch)) return A(L({ en:'That does not look like a channel URL. Please send https://youtube.com/@handle or https://youtube.com/channel/ID',
                                                   ru:'Не похоже на ссылку канала. Пришлите https://youtube.com/@handle или https://youtube.com/channel/ID' }));
@@ -192,29 +291,29 @@ function handleRegistrationDialog_(data){
         return A(L({ en:'Send your SEASON playlist URL (must be https://youtube.com/playlist?list=...):',
                      ru:'Пришлите ссылку на СЕЗОННЫЙ плейлист (только https://youtube.com/playlist?list=...):' }));
       }
-      case 4: { // playlist
+      case 4: {
         if (!isValidPlaylistUrl_(reply)) return A(L({ en:'Please send a valid playlist URL (https://youtube.com/playlist?list=...)',
                                                       ru:'Пришлите корректный плейлист (https://youtube.com/playlist?list=...)' }));
         st.payload.playlist_url = reply; st.step=5;
         return A(L({ en:'Country/region (e.g., RU, UA, KZ):', ru:'Страна/регион (например, RU, UA, KZ):' }));
       }
-      case 5: { // country
+      case 5: {
         if (!reply) return A(L({ en:'Please provide a 2-letter country code', ru:'Укажите код страны из двух букв' }));
         st.payload.country = reply; st.step=6;
         return A(L({ en:'City (optional — send "-" to skip):', ru:'Город (опционально — можно пропустить, отправив "-"):' }));
       }
-      case 6: { // city
+      case 6: {
         if (reply && reply !== '-') st.payload.city = reply;
         st.step = 7;
         return A(L({ en:'Contact (email or @username):', ru:'Контактное лицо (электронная почта или @имя пользователя):' }));
       }
-      case 7: { // contact
+      case 7: {
         if (!reply) return A(L({ en:'Please send a contact', ru:'Пожалуйста, укажите контакт' }));
         st.payload.contact = reply; st.step = 8;
         return A(L({ en:'Paste a short RULES text (500–3000 chars).',
                      ru:'Вставьте краткий текст ПРАВИЛ (500–3000 символов).' }));
       }
-      case 8: { // rules_text mandatory
+      case 8: {
         var rules = String(reply||'').trim();
         if (!(rules.length>=500 && rules.length<=3000)){
           return A(L({ en:'Rules text must be 500–3000 characters. Please paste again.',
@@ -224,44 +323,61 @@ function handleRegistrationDialog_(data){
         return A(L({ en:'Confirm you agree to the Rules and the Privacy Policy (yes/no).',
                      ru:'Подтвердите согласие с Правилами и Политикой конфиденциальности (да/нет).' }));
       }
-      case 9: { // consents
+      case 9: {
         var yes = reply.toLowerCase();
         if (!(/^(y|yes|да)$/.test(yes))) {
           return A(L({ en:'We need your consent to continue. Type "yes" if you agree.',
                        ru:'Нужно согласие, чтобы продолжить. Напишите "да", если согласны.' }));
         }
-        // Create registration + save rules in one go
-        try{
-          // 1) row in Registrations
-          var sh = ensureRegSheet_();
-          var id = Utilities.getUuid();
-          var token = makeToken_();
-          sh.appendRow([
-            new Date(), id, st.payload.team, st.payload.channel_url, st.payload.playlist_url,
-            st.payload.contact, st.payload.country, (st.payload.city||''), token, 'new', ''
-          ]);
-          // 2) save rules
-          var shR = ensureRulesSheet_();
-          shR.appendRow([
-            new Date(), id, st.payload.team, st.payload.country, (st.payload.city||''),
-            st.payload.channel_url, st.payload.playlist_url, st.payload.rules_text.length, st.payload.rules_text
-          ]);
-          st.step = 10;
+
+        // dedup BEFORE creating
+        var dup = findDuplicateRegistration_(st.payload.team, st.payload.channel_url, st.payload.playlist_url, st.payload.contact);
+        if (dup){
           return {
-            ok: true,
-            done: true,
-            id: id,
-            verify_token: token,
+            ok:true, done:true, duplicate:true, id:dup.id, verify_token:dup.token,
             msg: L({
-              en: 'Application saved. Your token: '+token+'. Paste it into your playlist description.',
-              ru: 'Заявка сохранена. Ваш токен: '+token+'. Вставьте его в описание плейлиста.'
+              en: 'You are already registered (by '+dup.by+'). Your token: '+dup.token+'. Paste it into your playlist description.',
+              ru: 'Вы уже зарегистрированы (по '+dup.by+'). Ваш токен: '+dup.token+'. Вставьте его в описание плейлиста.'
             }),
             state: st
           };
-        }catch(err2){
-          try{ logErr_('handleRegistrationDialog_/finalize', err2, { state:st }); }catch(_){}
-          return { ok:false, error:String(err2 && err2.message || err2), state:st };
         }
+
+        // 1) row in Registrations
+        var sh = ensureRegSheet_();
+        var id = Utilities.getUuid();
+        var token = makeToken_();
+        sh.appendRow([
+          new Date(), id, st.payload.team, st.payload.channel_url, st.payload.playlist_url,
+          st.payload.contact, st.payload.country, (st.payload.city||''), token, 'new', ''
+        ]);
+        // 2) save rules
+        var shR = ensureRulesSheet_();
+        shR.appendRow([
+          new Date(), id, st.payload.team, st.payload.country, (st.payload.city||''),
+          st.payload.channel_url, st.payload.playlist_url, st.payload.rules_text.length, st.payload.rules_text
+        ]);
+
+        // notify (best-effort)
+        try{
+          notifyOnRegistration_({
+            id:id, team:st.payload.team, channel_url:st.payload.channel_url, playlist_url:st.payload.playlist_url,
+            country:st.payload.country, city:(st.payload.city||''), verify_token:token, contact:st.payload.contact, status:'new'
+          });
+        }catch(_){}
+
+        st.step = 10;
+        return {
+          ok: true,
+          done: true,
+          id: id,
+          verify_token: token,
+          msg: L({
+            en: 'Application saved. Your token: '+token+'. Paste it into your playlist description.',
+            ru: 'Заявка сохранена. Ваш токен: '+token+'. Вставьте его в описание плейлиста.'
+          }),
+          state: st
+        };
       }
       default:
         st = { step:0, payload:{}, lang:'' };
@@ -273,5 +389,5 @@ function handleRegistrationDialog_(data){
   }
 }
 
-/** Compatibility: old single-phase form path just calls init */
+/** Legacy single-phase entry kept for compatibility (web form should use register_init) */
 function handleRegistration_(data){ return registerInit_(data); }
