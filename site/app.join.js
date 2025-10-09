@@ -111,3 +111,21 @@
 
   document.addEventListener('DOMContentLoaded', main);
 })();
+
+// extra: rules send button submits the form + live counter for rules
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.querySelector('form[data-join]');
+  const sendBtn = document.getElementById('rulesSendBtn');
+  if (form && sendBtn) {
+    sendBtn.addEventListener('click', () => {
+      try { form.requestSubmit(); } catch(_) { form.submit(); }
+    });
+  }
+  const rules = document.getElementById('rules_text');
+  const counter = document.getElementById('rules_count');
+  if (rules && counter) {
+    const update = () => { counter.textContent = String(rules.value.length); };
+    rules.addEventListener('input', update);
+    update();
+  }
+});
