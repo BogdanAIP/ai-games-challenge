@@ -11,6 +11,7 @@
       ask_country: 'Country/region (e.g., RU, UA, KZ):',
       ask_city: 'City (optional — send \'-\' to skip):',
       ask_contact: 'Contact (email or @username):',
+      ask_rules_text: 'Optional: paste a short version of your rules (<= 3000 chars), or send \'-\' to skip.',
       ask_consents: 'Confirm you agree to the Rules and the Privacy Policy (yes/no).',
       bad_channel: 'Doesn’t look like a channel URL. Please send https://youtube.com/@handle or https://youtube.com/channel/ID',
       bad_playlist: 'Please send a correct playlist URL: https://youtube.com/playlist?list=...',
@@ -28,6 +29,7 @@
       ask_country: 'Страна/регион (например, RU, UA, KZ):',
       ask_city: 'Город (опционально — можно пропустить, отправив \'-\'):',
       ask_contact: 'Контакт (email или @username):',
+      ask_rules_text: 'Опционально: пришлите краткий текст правил (<= 3000 символов), либо "-" чтобы пропустить.',
       ask_consents: 'Подтвердите согласие с Правилами и Политикой конфиденциальности (да/нет).',
       bad_channel: 'Не похоже на ссылку канала. Пришлите https://youtube.com/@handle или https://youtube.com/channel/ID',
       bad_playlist: 'Пришлите корректный плейлист: https://youtube.com/playlist?list=...',
@@ -96,7 +98,6 @@
 
   async function handleReply(msg){
     const t = T[LANG];
-    const outField = $('#verify-token');
     switch (REG_STATE.step|0){
       case 0: { // choose language
         const m = msg.trim().toLowerCase();
@@ -133,6 +134,13 @@
       case 6: {
         if (!msg.trim()) { pushQ(t.need_contact); return; }
         REG_STATE.payload.contact = msg.trim();
+        REG_STATE.step = 6.5; pushQ(t.ask_rules_text); return;
+      }
+      case 6.5: {
+        const v = msg.trim();
+        if (v !== '-' && v.length > 0){
+          REG_STATE.payload.rules_text = v.slice(0, 3000);
+        }
         REG_STATE.step = 7; pushQ(t.ask_consents); return;
       }
       case 7: {
@@ -140,7 +148,7 @@
         const ok = (LANG==='ru') ? (yes==='да' || yes==='y' || yes==='yes') : (yes==='yes' || yes==='y' || yes==='да');
         if (!ok){ pushQ(t.need_yes); return; }
 
-        // final submit
+        // final submit via dialog endpoint (GAS will call handleRegistration_)
         const endpoint = await loadEndpoint();
         const payload = {
           action: 'register',
@@ -152,13 +160,8 @@
           pushQ('Error: ' + (res && res.error || 'unknown'));
           return;
         }
-        // res.done + verify_token (GAS уже возвращает токен)
-        if (res.verify_token && outField){
-          outField.textContent = (t.done_prefix + res.verify_token + (t.done_suffix||''));
-          outField.style.display = 'block';
-        } else {
-          pushQ(t.done_prefix + (res.verify_token || '—') + (t.done_suffix||''));
-        }
+        const token = res.verify_token || '—';
+        pushQ(t.done_prefix + token + (t.done_suffix||''));
         return;
       }
       default:

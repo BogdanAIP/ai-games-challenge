@@ -21,13 +21,11 @@
       const u  = new URL(endpoint);
       u.searchParams.set('callback', cb);
       u.searchParams.set('payload', JSON.stringify(payload));
-
       let done=false, to;
       function cleanup(){ s.remove(); delete window[cb]; to && clearTimeout(to); }
-      window[cb] = function(resp){ if(done) return; done=true; cleanup(); resolve(resp); };
-      s.onerror = function(){ if(done) return; done=true; cleanup(); reject(new Error('JSONP error')); };
-      to = setTimeout(function(){ if(done) return; done=true; cleanup(); reject(new Error('Timeout')); }, 20000);
-
+      window[cb] = (resp)=>{ if(done) return; done=true; cleanup(); resolve(resp); };
+      s.onerror  = ()=>{ if(done) return; done=true; cleanup(); reject(new Error('JSONP error')); };
+      to = setTimeout(()=>{ if(done) return; done=true; cleanup(); reject(new Error('Timeout')); }, 20000);
       s.src = u.toString();
       document.head.appendChild(s);
     });
@@ -35,15 +33,24 @@
 
   function $(sel, root){ return (root||document).querySelector(sel); }
 
-  function randomToken(){ // UI-only generator (GAS всё равно выдаёт свой verify_token)
+  function randomToken(){
     const hex = '0123456789ABCDEF';
     let out=''; for(let i=0;i<8;i++) out += hex[Math.floor(Math.random()*hex.length)];
     return out;
   }
 
+  function bindRulesCounter(){
+    const ta = $('#rules_text'); const cnt = $('#rules_count');
+    if (!ta || !cnt) return;
+    const update=()=>{ cnt.textContent = String((ta.value||'').length); };
+    ta.addEventListener('input', update); update();
+  }
+
   async function main(){
     const form = document.querySelector('form[data-join]');
     if (!form) return;
+
+    bindRulesCounter();
 
     const tokenInput = $('#token', form);
     const genBtn     = $('#genTokenBtn');
@@ -69,7 +76,8 @@
           contact: (fd.get('contact')||'').toString().trim(),
           channel_url: (fd.get('channel_url')||'').toString().trim(),
           playlist_url: (fd.get('playlist_url')||'').toString().trim(),
-          // читаем галочки по name (а не безымянные input[type=checkbox])
+          rules_text: (fd.get('rules_text')||'').toString().trim(),
+          notes: (fd.get('notes')||'').toString().trim(),
           accept_rules: !!fd.get('accept_rules'),
           accept_policy: !!fd.get('accept_policy')
         };
@@ -83,14 +91,12 @@
           return;
         }
 
-        // Автоподстановка verify_token из ответа
         if (res.verify_token && tokenInput){
           tokenInput.value = res.verify_token;
         }
 
         msg.className = 'note ok';
         msg.textContent = 'Registration saved. Paste the token into your playlist description.';
-
         const vr = document.getElementById('verify-token');
         if (vr && res.verify_token){
           vr.textContent = 'Your verification token: ' + res.verify_token;
