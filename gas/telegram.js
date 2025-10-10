@@ -24,3 +24,15 @@ function handleTelegramPost_(data){
   });
   return { ok: resp.getResponseCode()===200, code: resp.getResponseCode(), body: resp.getContentText() };
 }
+
+
+/** tgPost_: пост в Telegram-канал, если заданы BOT_TOKEN и CHANNEL_ID в config_runtime.js */
+function tgPost_(text){
+  try{
+    if (typeof RUNTIME_CFG !== 'undefined' && RUNTIME_CFG && RUNTIME_CFG.TELEGRAM_BOT_TOKEN && RUNTIME_CFG.TELEGRAM_CHANNEL_ID){
+      var url = 'https://api.telegram.org/bot'+RUNTIME_CFG.TELEGRAM_BOT_TOKEN+'/sendMessage';
+      var payload = { chat_id: RUNTIME_CFG.TELEGRAM_CHANNEL_ID, text: String(text||''), disable_web_page_preview: true };
+      UrlFetchApp.fetch(url, { method:'post', payload: payload, muteHttpExceptions:true });
+    }
+  }catch(_){}
+}

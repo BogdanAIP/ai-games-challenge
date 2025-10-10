@@ -21,9 +21,7 @@
       window[cb] = function(data){ resolve(data); cleanup(); };
       s.onerror = function(){ reject(new Error('JSONP error')); cleanup(); };
       document.head.appendChild(s);
-      function cleanup(){ try{ delete window[cb]; }catch(_){ }
-        try{ s.remove(); }catch(_){ }
-      }
+      function cleanup(){ try{ delete window[cb]; }catch(_){ } try{ s.remove(); }catch(_){ } }
     });
   }
   function chunkString(str, size){ const out=[]; for(let i=0;i<str.length;i+=size) out.push(str.slice(i,i+size)); return out; }
@@ -65,14 +63,12 @@
     }
   }
 
-  // Двухфазная отправка правил
   async function sendRulesFlow(rulesText){
     try{
       if (!(rulesText.length>=500 && rulesText.length<=3000)){
         printQ(STATE.lang==='ru' ? 'Текст правил должен быть 500–3000 символов.' : 'Rules text must be 500–3000 characters.');
         return;
       }
-      // инициализация регистрации
       const init = await jsonpCall({
         action:'register_init',
         team: STATE.payload.team,
@@ -84,9 +80,19 @@
         accept_rules: true,
         accept_policy: true
       });
-      if (!init || !init.ok){ printQ('Register init failed: ' + (init && init.error || '')); return; }
+      if (!init || !init.ok){
+        // Покажем дружелюбное сообщение, если это дубли
+        if (init && init.error==='duplicate'){
+          const f = (STATE.lang==='ru'
+            ? 'Дубликаты: ' + (init.duplicates||[]).join(', ')
+            : 'Duplicate fields: ' + (init.duplicates||[]).join(', '));
+          printQ(f);
+        }else{
+          printQ('Register init failed: ' + (init && init.error || ''));
+        }
+        return;
+      }
 
-      // чанки
       const arr = chunkString((rulesText||'').trim(), 700);
       for (let i=0;i<arr.length;i++){
         const put = await jsonpCall({ action:'rules_put', id:init.id, seq:i, chunk:arr[i] });
@@ -95,41 +101,31 @@
       const fin = await jsonpCall({ action:'rules_commit', id:init.id });
       if (!fin || !fin.ok){ printQ('rules_commit failed: ' + (fin && fin.error || '')); return; }
 
-      // финал в окне бота
       const msg = (STATE.lang==='ru')
         ? ('Заявка сохранена. Ваш токен: ' + (fin.verify_token || init.verify_token) + '. Вставьте его в описание плейлиста.')
         : ('Application saved. Your token: ' + (fin.verify_token || init.verify_token) + '. Paste it into your playlist description.');
       printQ(msg);
-      STATE.step = 0; // reset
+      STATE = { step:0, payload:{}, lang:STATE.lang };
     }catch(err){
       printQ('Network error: ' + String(err.message||err));
     }
   }
 
+  // Старт — только по кнопке, чтобы не было двойного "Choose language..."
   btnStart && btnStart.addEventListener('click', ()=>{ box.innerHTML=''; STATE={step:0,payload:{},lang:''}; handle(''); });
 
   btnSend && btnSend.addEventListener('click', async ()=>{
     const txt = (input.value||'').trim();
     if (!txt) return;
 
-    // НОВОЕ: если это большой текст (>=500), считаем, что это правила, и НЕ шлём его в action=register (чтобы не словить JSONP overflow).
+    // Если пользователь вставил длинный текст — это правила → двухфазный поток
     if (txt.length >= 500){
       printA(txt);
       input.value='';
       await sendRulesFlow(txt);
       return;
     }
-
-    // Прежняя логика: если последний вопрос явно просил правила — тоже запускаем rules flow
-    const lastQ = box.querySelector('.regbot-q:last-child');
-    if (lastQ && /Paste.*RULES|Вставьте.*ПРАВИЛ/i.test(lastQ.textContent||'')){
-      printA(txt);
-      input.value='';
-      await sendRulesFlow(txt);
-      return;
-    }
-
-    // Обычный шаг диалога
+    // Иначе обычный диалоговый шаг
     await handle(txt);
     input.value='';
   });
