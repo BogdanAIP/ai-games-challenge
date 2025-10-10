@@ -415,3 +415,58 @@ function handleRegistrationDialog_(data){
     return { ok:false, error:String(err && err.message || err) };
   }
 }
+
+// ===== Uniqueness checks (no writes) =====
+function _norm_(s){ return String(s||'').trim().toLowerCase(); }
+
+function normalizeChannelUrlLite_(s){
+  s = String(s||'').trim();
+  if (!s) return '';
+  if (/^@[\w.\-]+$/i.test(s)) return '@' + s.replace(/^@/,'');
+  s = s.replace(/^https?:\/\/youtu\.be\//i, 'https://www.youtube.com/');
+  var m = s.match(/^https?:\/\/(www\.)?youtube\.com\/([^?#]+)(?:[?#].*)?$/i);
+  if (m){
+    var p = m[2];
+    if (/^channel\/[A-Za-z0-9_\-]+$/i.test(p)) return 'channel/' + p.split('/')[1];
+    if (/^@[\w.\-]+$/i.test(p)) return '@' + p.replace(/^@/,'');
+  }
+  return _norm_(s);
+}
+
+function ensureRegSheetForRead_(){
+  var ss = SS_();
+  var sh = ss.getSheetByName('Registrations');
+  if (!sh) return { rows:[], idx:{} };
+  var vals = sh.getDataRange().getValues();
+  var rows = (vals||[]).slice(1);
+  return { rows:rows, idx:{} };
+}
+
+/** Public: check uniqueness by team/channel/contact (case-insensitive) */
+function checkUnique_(data){
+  try{
+    data = data || {};
+    var team    = _norm_(data.team);
+    var ch      = normalizeChannelUrlLite_(data.channel_url);
+    var contact = _norm_(data.contact);
+
+    var hitTeam=false, hitChannel=false, hitContact=false;
+
+    var rr = ensureRegSheetForRead_().rows;
+    for (var i=0;i<rr.length;i++){
+      var row = rr[i];
+      // schema: [ts,id,team,channel_url,playlist_url,contact,country,city,verify_token,status,notes]
+      var t  = _norm_(row[2]);
+      var cu = normalizeChannelUrlLite_(row[3]);
+      var c  = _norm_(row[5]);
+      if (team && t === team) hitTeam = true;
+      if (ch && cu === ch) hitChannel = true;
+      if (contact && contact === c) hitContact = true;
+      if (hitTeam && hitChannel && hitContact) break;
+    }
+    return { ok:true, dup_team:hitTeam, dup_channel:hitChannel, dup_contact:hitContact };
+  }catch(err){
+    try{ logErr_('checkUnique_', err, { data:data }); }catch(_){}
+    return { ok:false, error:String(err && err.message || err) };
+  }
+}
