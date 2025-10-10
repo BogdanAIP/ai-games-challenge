@@ -43,6 +43,45 @@
     return await jsonpCall({ action:'register', state: STATE, reply: msg });
   }
 
+  // RULES: перехват — двухфазная отправка (init + chunks + commit)
+  async function sendRulesFlow(rulesText){
+    try{
+      const txt = (rulesText||'').trim();
+      if (!(txt.length>=500 && txt.length<=3000)){
+        printQ('Rules text must be 500–3000 characters.');
+        return;
+      }
+      // 1) init
+      const init = await jsonpCall({
+        action:'register_init',
+        team: STATE.payload.team,
+        channel_url: STATE.payload.channel_url,
+        playlist_url: STATE.payload.playlist_url,
+        country: STATE.payload.country,
+        city: STATE.payload.city || '',
+        contact: STATE.payload.contact,
+        accept_rules: true,
+        accept_policy: true
+      });
+      if (!init || !init.ok){ printQ('Registration init error: ' + String((init && init.error) || '')); return; }
+
+      // 2) chunks
+      const chunks = chunkString(txt, 700);
+      for (let i=0;i<chunks.length;i++){
+        const put = await jsonpCall({ action:'rules_put', id:init.id, seq:i, chunk:chunks[i] });
+        if (!put || !put.ok){ printQ('rules_put failed at chunk '+i); return; }
+      }
+      // 3) commit
+      const fin = await jsonpCall({ action:'rules_commit', id:init.id });
+      if (!fin || !fin.ok){ printQ('rules_commit failed: ' + String((fin && fin.error)||'')); return; }
+
+      printQ('Application saved. Your token: ' + (fin.verify_token || init.verify_token) + '. Paste it into your playlist description.');
+      STATE = { step:0, payload:{} };
+    }catch(err){
+      printQ('Network error: ' + String(err.message||err));
+    }
+  }
+
   async function handle(msg){
     if (msg) printA(msg);
     try{
@@ -70,55 +109,29 @@
     }
   }
 
-  // RULES: перехват — двухфазная отправка (init + chunks + commit)
-  async function sendRulesFlow(rulesText){
-    try{
-      if (!(rulesText && rulesText.trim().length>=500 && rulesText.trim().length<=3000)){
-        printQ('Rules text must be 500–3000 characters.');
-        return;
-      }
-      // 1) init
-      const init = await jsonpCall({
-        action:'register_init',
-        team: STATE.payload.team,
-        channel_url: STATE.payload.channel_url,
-        playlist_url: STATE.payload.playlist_url,
-        country: STATE.payload.country,
-        city: STATE.payload.city || '',
-        contact: STATE.payload.contact,
-        accept_rules: true,
-        accept_policy: true
-      });
-      if (!init || !init.ok){ printQ('Registration init error: ' + String((init && init.error) || '')); return; }
-
-      // 2) chunks
-      const chunks = chunkString(rulesText.trim(), 700);
-      for (let i=0;i<chunks.length;i++){
-        const put = await jsonpCall({ action:'rules_put', id:init.id, seq:i, chunk:chunks[i] });
-        if (!put || !put.ok){ printQ('rules_put failed at chunk '+i); return; }
-      }
-      // 3) commit
-      const fin = await jsonpCall({ action:'rules_commit', id:init.id });
-      if (!fin || !fin.ok){ printQ('rules_commit failed: ' + String((fin && fin.error)||'')); return; }
-
-      printQ('Application saved. Your token: ' + (fin.verify_token || init.verify_token) + '. Paste it into your playlist description.');
-      STATE = { step:0, payload:{} };
-    }catch(err){
-      printQ('Network error: ' + String(err.message||err));
-    }
-  }
-
   btnStart && btnStart.addEventListener('click', async ()=>{
     box.innerHTML=''; STATE={step:0,payload:{}};
-    await handle(''); // запросим первый вопрос с сервера (EN)
+    await handle(''); // сервер пришлёт первый вопрос (на любом языке)
   });
+
   btnSend  && btnSend.addEventListener('click', async ()=>{
     const txt = (input.value||'').trim();
     if (!txt) return;
+
+    // --- Определяем, что сейчас шаг "Правила":
     const lastQ = box.querySelector('.regbot-q:last-child');
-    if (lastQ && /Paste the RULES text \(500–3000 characters\)/i.test(lastQ.textContent||'')){
-      printA(txt); input.value=''; await sendRulesFlow(txt); return;
+    const isRulesPrompt = !!(lastQ && /(Paste the RULES text \(500–3000 characters\)|Вставьте\s+ТЕКСТ\s+ПРАВИЛ)/i.test(lastQ.textContent||''));
+
+    // Fallback: если сервер вдруг не распознал шаг, но пользователь прислал длинный текст
+    const looksLikeRules = (txt.length >= 500 && STATE.step >= 7);
+
+    if (isRulesPrompt || looksLikeRules){
+      printA(txt);
+      input.value='';
+      await sendRulesFlow(txt);
+      return;
     }
+
     await handle(txt);
     input.value='';
   });
