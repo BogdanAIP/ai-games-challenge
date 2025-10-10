@@ -220,3 +220,111 @@ function rulesCommit_(data){
     return { ok:false, error:String(err && err.message || err) };
   }
 }
+
+// ===== Bot dialog (EN/RU), asks for RULES text (500–3000), front sends chunks =====
+function handleRegistrationDialog_(data){
+  try{
+    data = data || {};
+    var state = data.state || { step:0, payload:{}, lang:'' };
+    var reply = String(data.reply || data.text || '').trim();
+
+    function ask(txt){ return { ok:true, ask:txt, state:state }; }
+    function setLang(s){
+      s = (s||'').toLowerCase();
+      if (/^en(g|glish)?$/.test(s)) return 'en';
+      if (/^ru(ssian)?$/.test(s) || s==='русский' || s==='ру') return 'ru';
+      return '';
+    }
+
+    switch (state.step|0){
+      case 0: {
+        state = { step:1, payload:{}, lang:'' };
+        return ask('Choose language: English or Russian?\nВыберите язык: English или Русский?');
+      }
+      case 1: {
+        var L = setLang(reply);
+        if (!L) return ask('Choose language: English or Russian?\nВыберите язык: English или Русский?');
+        state.lang = L;
+        state.step = 2;
+        return ask(L==='ru' ? 'Как называется ваша команда?' : 'What is your team name?');
+      }
+      case 2: {
+        if (!reply) return ask(state.lang==='ru' ? 'Пожалуйста, укажите название команды' : 'Please enter your team name');
+        state.payload.team = reply;
+        state.step = 3;
+        return ask(state.lang==='ru'
+          ? 'Ссылка на YouTube-канал (https://youtube.com/@handle или https://youtube.com/channel/ID):'
+          : 'Link to your YouTube channel (https://youtube.com/@handle or https://youtube.com/channel/ID):');
+      }
+      case 3: {
+        var ch = normalizeChannelUrl_(reply);
+        if (!isValidChannelUrl_(ch))
+          return ask(state.lang==='ru'
+            ? 'Не похоже на ссылку канала. Пришлите https://youtube.com/@handle или https://youtube.com/channel/ID'
+            : 'Does not look like a channel link. Send https://youtube.com/@handle or https://youtube.com/channel/ID');
+        state.payload.channel_url = ch;
+        state.step = 4;
+        return ask(state.lang==='ru'
+          ? 'Пришлите ссылку на СЕЗОННЫЙ плейлист (только https://youtube.com/playlist?list=...):'
+          : 'Send your SEASON playlist URL (must be https://youtube.com/playlist?list=...):');
+      }
+      case 4: {
+        if (!isValidPlaylistUrl_(reply))
+          return ask(state.lang==='ru'
+            ? 'Нужен именно плейлист: https://youtube.com/playlist?list=...'
+            : 'It must be a playlist: https://youtube.com/playlist?list=...');
+        state.payload.playlist_url = reply;
+        state.step = 5;
+        return ask(state.lang==='ru'
+          ? 'Страна/регион (например, RU, UA, KZ):'
+          : 'Country/region (e.g., RU, UA, KZ):');
+      }
+      case 5: {
+        if (!reply) return ask(state.lang==='ru' ? 'Укажите страну (две буквы, например RU):' : 'Please provide country code (e.g., RU)');
+        state.payload.country = reply;
+        state.step = 6;
+        return ask(state.lang==='ru'
+          ? 'Город (опционально — можно пропустить, отправив "-" ):'
+          : 'City (optional — send "-" to skip):');
+      }
+      case 6: {
+        if (reply && reply !== '-') state.payload.city = reply;
+        state.step = 7;
+        return ask(state.lang==='ru'
+          ? 'Контакт (email или @username):'
+          : 'Contact (email or @username):');
+      }
+      case 7: {
+        if (!reply) return ask(state.lang==='ru' ? 'Пожалуйста, укажите контакт' : 'Please provide a contact');
+        state.payload.contact = reply;
+        state.step = 8;
+        return ask(state.lang==='ru'
+          ? 'Подтвердите согласие с Правилами и Политикой конфиденциальности (да/нет).'
+          : 'Confirm you agree to the Rules and the Privacy Policy (yes/no).');
+      }
+      case 8: {
+        var ok = reply.toLowerCase();
+        if (!(ok==='да' || ok==='yes' || ok==='y'))
+          return ask(state.lang==='ru'
+            ? 'Нужно согласие с Правилами и Политикой. Напишите "да", если согласны.'
+            : 'You must agree to the Rules and the Privacy Policy. Type "yes" to continue.');
+        state.step = 9;
+        // === КЛЮЧЕВОЙ ШАГ С ПРАВИЛАМИ: фраза специально сделана,
+        // чтобы фронт (app.regbot.js) распознал и отправил текст чанками ===
+        return ask(state.lang==='ru'
+          ? 'Вставьте ТЕКСТ ПРАВИЛ (500–3000 символов) одним сообщением:'
+          : 'Paste your RULES text (500–3000 characters) in a single message:');
+      }
+      default:
+        // Ждём, что фронт перехватит шаг 9, выполнит register_init + rules_put + rules_commit,
+        // и вернёт финал уже внутри UI. Сбросим, если вдруг зашли сюда.
+        state = { step:0, payload:{}, lang: state.lang || '' };
+        return ask(state.lang==='ru'
+          ? 'Начнём заново. Как называется ваша команда?'
+          : 'Let\'s start over. What is your team name?');
+    }
+  }catch(err){
+    try{ logErr_('handleRegistrationDialog_', err, { data:data }); }catch(_){}
+    return { ok:false, error:String(err && err.message || err) };
+  }
+}
