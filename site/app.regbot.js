@@ -2,91 +2,135 @@
   function getConfig(){
     if (window.FORM_ENDPOINT) return window.FORM_ENDPOINT;
     try{
-      const el = document.getElementById('site-config');
+      var el = document.getElementById('site-config');
       if (el && el.textContent){
-        const cfg = JSON.parse(el.textContent);
+        var cfg = JSON.parse(el.textContent);
         if (cfg && cfg.FORM_ENDPOINT) return cfg.FORM_ENDPOINT;
       }
     }catch(_){}
     return '';
   }
   function jsonpCall(payload){
-    return new Promise((resolve,reject)=>{
+    return new Promise(function(resolve,reject){
+      const cb = 'cb_'+Math.random().toString(36).slice(2);
       const ep = getConfig();
       if (!ep) return reject(new Error('FORM_ENDPOINT not set'));
-      const cb = 'cb_'+Math.random().toString(36).slice(2);
       const u  = new URL(ep);
       const s  = document.createElement('script');
       s.src = u.toString() + '?callback=' + cb + '&payload=' + encodeURIComponent(JSON.stringify(payload));
-      window[cb] = (data)=>{ resolve(data); cleanup(); };
-      s.onerror = ()=>{ reject(new Error('JSONP error')); cleanup(); };
+      window[cb] = function(data){ resolve(data); cleanup(); };
+      s.onerror = function(){ reject(new Error('JSONP error')); cleanup(); };
       document.head.appendChild(s);
-      function cleanup(){ try{ delete window[cb]; }catch(_){}
-        try{ s.remove(); }catch(_){}
+      function cleanup(){ try{ delete window[cb]; }catch(_){ }
+        try{ s.remove(); }catch(_){ }
       }
     });
   }
+  function chunkString(str, size){ const out=[]; for(let i=0;i<str.length;i+=size) out.push(str.slice(i,i+size)); return out; }
 
-  // гарантируем UI
-  function ensureBotUI(){
-    let box = document.getElementById('regbot-box');
-    if (!box){
-      const form = document.querySelector('form[data-join]') || document.body;
-      const sec = document.createElement('section');
-      sec.id = 'regbot-section';
-      sec.style.marginTop = '28px';
-      sec.innerHTML = `
-        <h3>AI Registration Assistant</h3>
-        <p class="note">Assistant collects: team, country, contact, channel, playlist, and short rules (required).</p>
-        <div id="regbot-box" aria-live="polite" style="border:1px solid #2b2f31;border-radius:12px;padding:12px;height:260px;overflow:auto;background:#0e0f10;margin-top:8px"></div>
-        <div class="regbot-row" style="display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-top:8px">
-          <input id="regbot-input" placeholder="Answer the bot…" style="padding:.75rem;border:1px solid #2b2f31;border-radius:10px;background:#111;color:#fff"/>
-          <button class="btn" id="regbot-send" type="button">Send</button>
-          <button class="btn btn-secondary" id="regbot-start" type="button">Start</button>
-        </div>`;
-      form.parentNode.insertBefore(sec, form.nextSibling);
-    }
-    return {
-      box: document.getElementById('regbot-box'),
-      input: document.getElementById('regbot-input'),
-      send: document.getElementById('regbot-send'),
-      start: document.getElementById('regbot-start')
-    };
-  }
-
-  const ui = ensureBotUI();
-  const box = ui.box, input = ui.input, btnSend = ui.send, btnStart = ui.start;
+  const box = document.getElementById('regbot-box');
+  const input = document.getElementById('regbot-input');
+  const btnSend = document.getElementById('regbot-send');
+  const btnStart= document.getElementById('regbot-start');
 
   let STATE = { step:0, payload:{}, lang:'' };
 
-  function printQ(t){ const d=document.createElement('div'); d.className='regbot-q'; d.textContent=t; box.appendChild(d); box.scrollTop=box.scrollHeight; }
-  function printA(t){ const d=document.createElement('div'); d.className='regbot-a'; d.textContent=t; box.appendChild(d); box.scrollTop=box.scrollHeight; }
+  function printQ(text){ const p=document.createElement('div'); p.className='regbot-q'; p.textContent=text; box.appendChild(p); box.scrollTop=box.scrollHeight; }
+  function printA(text){ const p=document.createElement('div'); p.className='regbot-a'; p.textContent=text; box.appendChild(p); box.scrollTop=box.scrollHeight; }
 
-  async function sendToServer(msg){ return await jsonpCall({ action:'register', state: STATE, reply: msg }); }
+  async function sendToServer(msg){
+    return await jsonpCall({ action:'register', state: STATE, reply: msg });
+  }
 
   async function handle(msg){
     if (msg) printA(msg);
     try{
-      const res = await sendToServer(msg||'');
-      if (!res || !res.ok){ printQ('Error: ' + (res && res.error || 'unknown')); return; }
-      if (res.ask){ printQ(res.ask); STATE = res.state || STATE; return; }
+      let res = await sendToServer(msg||'');
+      if (!res || !res.ok){
+        printQ('Error: ' + (res && res.error || 'unknown'));
+        return;
+      }
+      if (res.ask){
+        printQ(res.ask);
+        STATE = res.state || STATE;
+        return;
+      }
       if (res.done && res.verify_token){
         printQ(res.msg || ('Your token: ' + res.verify_token));
         STATE = res.state || STATE;
+        return;
       }
     }catch(err){
       printQ('Network error: ' + String(err.message||err));
     }
   }
 
+  // Двухфазная отправка правил
+  async function sendRulesFlow(rulesText){
+    try{
+      if (!(rulesText.length>=500 && rulesText.length<=3000)){
+        printQ(STATE.lang==='ru' ? 'Текст правил должен быть 500–3000 символов.' : 'Rules text must be 500–3000 characters.');
+        return;
+      }
+      // инициализация регистрации
+      const init = await jsonpCall({
+        action:'register_init',
+        team: STATE.payload.team,
+        channel_url: STATE.payload.channel_url,
+        playlist_url: STATE.payload.playlist_url,
+        country: STATE.payload.country,
+        city: STATE.payload.city || '',
+        contact: STATE.payload.contact,
+        accept_rules: true,
+        accept_policy: true
+      });
+      if (!init || !init.ok){ printQ('Register init failed: ' + (init && init.error || '')); return; }
+
+      // чанки
+      const arr = chunkString((rulesText||'').trim(), 700);
+      for (let i=0;i<arr.length;i++){
+        const put = await jsonpCall({ action:'rules_put', id:init.id, seq:i, chunk:arr[i] });
+        if (!put || !put.ok){ printQ('rules_put failed'); return; }
+      }
+      const fin = await jsonpCall({ action:'rules_commit', id:init.id });
+      if (!fin || !fin.ok){ printQ('rules_commit failed: ' + (fin && fin.error || '')); return; }
+
+      // финал в окне бота
+      const msg = (STATE.lang==='ru')
+        ? ('Заявка сохранена. Ваш токен: ' + (fin.verify_token || init.verify_token) + '. Вставьте его в описание плейлиста.')
+        : ('Application saved. Your token: ' + (fin.verify_token || init.verify_token) + '. Paste it into your playlist description.');
+      printQ(msg);
+      STATE.step = 0; // reset
+    }catch(err){
+      printQ('Network error: ' + String(err.message||err));
+    }
+  }
+
   btnStart && btnStart.addEventListener('click', ()=>{ box.innerHTML=''; STATE={step:0,payload:{},lang:''}; handle(''); });
-  btnSend  && btnSend.addEventListener('click', async ()=>{
+
+  btnSend && btnSend.addEventListener('click', async ()=>{
     const txt = (input.value||'').trim();
     if (!txt) return;
+
+    // НОВОЕ: если это большой текст (>=500), считаем, что это правила, и НЕ шлём его в action=register (чтобы не словить JSONP overflow).
+    if (txt.length >= 500){
+      printA(txt);
+      input.value='';
+      await sendRulesFlow(txt);
+      return;
+    }
+
+    // Прежняя логика: если последний вопрос явно просил правила — тоже запускаем rules flow
+    const lastQ = box.querySelector('.regbot-q:last-child');
+    if (lastQ && /Paste.*RULES|Вставьте.*ПРАВИЛ/i.test(lastQ.textContent||'')){
+      printA(txt);
+      input.value='';
+      await sendRulesFlow(txt);
+      return;
+    }
+
+    // Обычный шаг диалога
     await handle(txt);
     input.value='';
   });
-
-  // автозапуск, если пусто
-  if (!box.innerHTML.trim()){ handle(''); }
 })();
