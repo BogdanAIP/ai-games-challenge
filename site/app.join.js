@@ -1,4 +1,6 @@
 (function(){
+  function debounce(fn, ms){ let t; return function(...a){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,a), ms);}; }
+
   function qs(p,sel){ return (p||document).querySelector(sel); }
   function getEndpoint(){
     if (window.FORM_ENDPOINT) return window.FORM_ENDPOINT;
@@ -69,6 +71,28 @@
       el.addEventListener('blur', ()=>{ checkUnique(form).catch(()=>{}); });
       el.addEventListener('input', ()=>{ setFieldError(form, name, ''); });
     });
+
+    /* dup listeners */
+    const teamIn = qs(form,'[name=team]');
+    const chIn   = qs(form,'[name=channel_url]');
+    const ctIn   = qs(form,'[name=contact]');
+
+    async function check(field, value, input){
+      if(!value){ input.setCustomValidity(''); ensureHint(input).textContent=''; return; }
+      try{
+        const res = await jsonpCall({ action:'dup_check', field, value });
+        if(!res || res.ok===false){ input.setCustomValidity(''); ensureHint(input).textContent=''; return; }
+        if(field==='channel_url' && res.normalized){ input.value = res.normalized; }
+        if(res.duplicate){ input.setCustomValidity('Already registered'); ensureHint(input).textContent = 'Already registered'; }
+        else if(res.valid===false){ input.setCustomValidity('Invalid value'); ensureHint(input).textContent = 'Invalid value'; }
+        else { input.setCustomValidity(''); ensureHint(input).textContent='✔ looks good'; }
+        input.reportValidity();
+      }catch(_){ input.setCustomValidity(''); ensureHint(input).textContent=''; }
+    }
+
+    if(teamIn) teamIn.addEventListener('input', debounce(()=>check('team', teamIn.value.trim(), teamIn), 400));
+    if(chIn)   chIn.addEventListener('input',   debounce(()=>check('channel_url', chIn.value.trim(), chIn), 400));
+    if(ctIn)   ctIn.addEventListener('input',   debounce(()=>check('contact', ctIn.value.trim(), ctIn), 400));
 
     form.addEventListener('submit', async (e)=>{
       e.preventDefault();

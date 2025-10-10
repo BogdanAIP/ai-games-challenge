@@ -293,3 +293,70 @@ function notifyOnRegistrationStub_(id, team, contact){
     }
   }catch(_){}
 }
+
+
+// DUP-CHECK HELPERS
+
+function _regVals_(){
+  var ss = SS_(); var sh = ss.getSheetByName('Registrations');
+  return sh ? sh.getDataRange().getValues() : null;
+}
+function isDuplicateTeam_(name){
+  name = String(name||'').trim().toLowerCase(); if (!name) return false;
+  var vals = _regVals_(); if (!vals || vals.length<=1) return false;
+  for (var r=1;r<vals.length;r++){
+    var t = String(vals[r][2]||'').trim().toLowerCase();
+    if (t && t===name) return true;
+  }
+  return false;
+}
+function isDuplicateChannel_(url){
+  var norm = normalizeChannelUrl_(url); if (!norm) return false;
+  var vals = _regVals_(); if (!vals || vals.length<=1) return false;
+  for (var r=1;r<vals.length;r++){
+    var v = String(vals[r][3]||'').trim();
+    if (v && v===norm) return true;
+  }
+  return false;
+}
+function isDuplicateContact_(c){
+  c = String(c||'').trim().toLowerCase(); if (!c) return false;
+  var vals = _regVals_(); if (!vals || vals.length<=1) return false;
+  for (var r=1;r<vals.length;r++){
+    var v = String(vals[r][5]||'').trim().toLowerCase();
+    if (v && v===c) return true;
+  }
+  return false;
+}
+
+/** dup_check: {field:'team'|'channel_url'|'contact', value:'...'} */
+function handleDupCheck_(data){
+  try{
+    data = data||{};
+    var field = String(data.field||'').trim();
+    var value = String(data.value||'').trim();
+    if (!field) return { ok:false, error:'Missing field' };
+    if (!value) return { ok:true, field:field, value:value, duplicate:false, valid:false };
+
+    if (field==='team'){
+      var dup = isDuplicateTeam_(value);
+      return { ok:true, field:field, value:value, duplicate:dup, valid:!dup };
+    }
+    if (field==='channel_url'){
+      var norm = normalizeChannelUrl_(value);
+      var valid = isValidChannelUrl_(norm);
+      var dup = valid ? isDuplicateChannel_(norm) : false;
+      return { ok:true, field:field, value:value, normalized:norm, duplicate:dup, valid:valid && !dup };
+    }
+    if (field==='contact'){
+      var dupc = isDuplicateContact_(value);
+      var looksValid = /@/.test(value); // простая эвристика (email или @username)
+      return { ok:true, field:field, value:value, duplicate:dupc, valid:looksValid && !dupc };
+    }
+    return { ok:false, error:'Unknown field' };
+  }catch(err){
+    try{ logErr_('handleDupCheck_', err, { data:data }); }catch(_){}
+    return { ok:false, error:String(err && err.message || err) };
+  }
+}
+
