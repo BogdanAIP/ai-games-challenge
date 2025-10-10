@@ -98,6 +98,9 @@
 
   async function main(){
     const form = qs(document,'form[data-join]');
+    const rulesSendBtn = document.getElementById('rulesSendBtn');
+    if (rulesSendBtn && form){ try{ rulesSendBtn.addEventListener('click', ()=>{ try{ form.requestSubmit(); }catch(_){ form.submit(); } }); }catch(_){}}
+
     if (!form) return;
 
     const tokenEl = qs(form,'#token');
