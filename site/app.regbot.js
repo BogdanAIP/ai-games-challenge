@@ -1,5 +1,5 @@
 (function(){
-  function getConfig(){
+  function getEndpoint(){
     if (window.FORM_ENDPOINT) return window.FORM_ENDPOINT;
     try{
       var el = document.getElementById('site-config');
@@ -12,64 +12,45 @@
   }
   function jsonpCall(payload){
     return new Promise(function(resolve,reject){
+      const ep = getEndpoint(); if (!ep) return reject(new Error('FORM_ENDPOINT not set'));
       const cb = 'cb_'+Math.random().toString(36).slice(2);
-      const ep = getConfig();
-      if (!ep) return reject(new Error('FORM_ENDPOINT not set'));
       const u  = new URL(ep);
       const s  = document.createElement('script');
-      s.src = u.toString() + '?callback=' + cb + '&payload=' + encodeURIComponent(JSON.stringify(payload));
+      s.src = u.toString() + '?callback=' + cb + '&payload=' + encodeURIComponent(JSON.stringify(payload)) + '&t=' + Date.now();
       window[cb] = function(data){ resolve(data); cleanup(); };
       s.onerror = function(){ reject(new Error('JSONP error')); cleanup(); };
       document.head.appendChild(s);
-      function cleanup(){ try{ delete window[cb]; }catch(_){ } try{ s.remove(); }catch(_){ } }
+      function cleanup(){ try{ delete window[cb]; }catch(_){}
+        try{ s.remove(); }catch(_){}
+      }
     });
   }
-  function chunkString(str, size){ const out=[]; for(let i=0;i<str.length;i+=size) out.push(str.slice(i,i+size)); return out; }
+  document.addEventListener('DOMContentLoaded', function(){
+    const box = document.getElementById('regbot-box');
+    const input = document.getElementById('regbot-input');
+    const btnSend = document.getElementById('regbot-send');
+    const btnStart= document.getElementById('regbot-start');
+    if (!box || !input || !btnSend || !btnStart) return;
 
-  const box = document.getElementById('regbot-box');
-  const input = document.getElementById('regbot-input');
-  const btnSend = document.getElementById('regbot-send');
-  const btnStart= document.getElementById('regbot-start');
+    let STATE = { step:0, payload:{}, lang:'' };
+    function printQ(t){ const p=document.createElement('div'); p.className='regbot-q'; p.textContent=t; box.appendChild(p); box.scrollTop=box.scrollHeight; }
+    function printA(t){ const p=document.createElement('div'); p.className='regbot-a'; p.textContent=t; box.appendChild(p); box.scrollTop=box.scrollHeight; }
 
-  let STATE = { step:0, payload:{}, lang:'' };
+    async function send(payload){ try{ return await jsonpCall(payload); } catch(e){ return { ok:false, error:e.message||String(e) }; } }
 
-  function printQ(text){ const p=document.createElement('div'); p.className='regbot-q'; p.textContent=text; box.appendChild(p); box.scrollTop=box.scrollHeight; }
-  function printA(text){ const p=document.createElement('div'); p.className='regbot-a'; p.textContent=text; box.appendChild(p); box.scrollTop=box.scrollHeight; }
-
-  async function sendToServer(msg){
-    return await jsonpCall({ action:'register', state: STATE, reply: msg });
-  }
-
-  async function handle(msg){
-    if (msg) printA(msg);
-    try{
-      let res = await sendToServer(msg||'');
-      if (!res || !res.ok){
-        printQ('Error: ' + (res && res.error || 'unknown'));
-        return;
-      }
-      if (res.ask){
-        printQ(res.ask);
-        STATE = res.state || STATE;
-        return;
-      }
-      if (res.done && res.verify_token){
-        printQ(res.msg || ('Your token: ' + res.verify_token));
-        STATE = res.state || STATE;
-        return;
-      }
-    }catch(err){
-      printQ('Network error: ' + String(err.message||err));
+    async function handle(msg){
+      if (msg) printA(msg);
+      const res = await send({ action:'register', state:STATE, reply: msg||'' });
+      if (!res || !res.ok){ printQ('Error: '+(res && res.error || 'unknown')); return; }
+      if (res.ask){ STATE = res.state||STATE; printQ(res.ask); return; }
+      if (res.done){ STATE = res.state||STATE; printQ(res.msg || ('Your token: '+(res.verify_token||''))); return; }
     }
-  }
 
-  async function sendRulesFlow(rulesText){
-    try{
-      if (!(rulesText.length>=500 && rulesText.length<=3000)){
-        printQ(STATE.lang==='ru' ? 'Текст правил должен быть 500–3000 символов.' : 'Rules text must be 500–3000 characters.');
-        return;
+    async function sendRulesFlow(text){
+      if (!(text && text.trim().length>=500 && text.trim().length<=3000)){
+        printQ(STATE.lang==='ru' ? 'Текст правил должен быть 500–3000 символов.' : 'Rules text must be 500–3000 characters.'); return;
       }
-      const init = await jsonpCall({
+      const init = await send({
         action:'register_init',
         team: STATE.payload.team,
         channel_url: STATE.payload.channel_url,
@@ -80,53 +61,26 @@
         accept_rules: true,
         accept_policy: true
       });
-      if (!init || !init.ok){
-        // Покажем дружелюбное сообщение, если это дубли
-        if (init && init.error==='duplicate'){
-          const f = (STATE.lang==='ru'
-            ? 'Дубликаты: ' + (init.duplicates||[]).join(', ')
-            : 'Duplicate fields: ' + (init.duplicates||[]).join(', '));
-          printQ(f);
-        }else{
-          printQ('Register init failed: ' + (init && init.error || ''));
-        }
-        return;
-      }
-
-      const arr = chunkString((rulesText||'').trim(), 700);
+      if (!init || !init.ok){ printQ('Registration init error: '+(init && init.error||'')); return; }
+      const t = text.trim(); const arr=[]; for(let i=0;i<t.length;i+=700) arr.push(t.slice(i,i+700));
       for (let i=0;i<arr.length;i++){
-        const put = await jsonpCall({ action:'rules_put', id:init.id, seq:i, chunk:arr[i] });
+        const put = await send({ action:'rules_put', id:init.id, seq:i, chunk:arr[i] });
         if (!put || !put.ok){ printQ('rules_put failed'); return; }
       }
-      const fin = await jsonpCall({ action:'rules_commit', id:init.id });
-      if (!fin || !fin.ok){ printQ('rules_commit failed: ' + (fin && fin.error || '')); return; }
-
-      const msg = (STATE.lang==='ru')
-        ? ('Заявка сохранена. Ваш токен: ' + (fin.verify_token || init.verify_token) + '. Вставьте его в описание плейлиста.')
-        : ('Application saved. Your token: ' + (fin.verify_token || init.verify_token) + '. Paste it into your playlist description.');
-      printQ(msg);
-      STATE = { step:0, payload:{}, lang:STATE.lang };
-    }catch(err){
-      printQ('Network error: ' + String(err.message||err));
+      const fin = await send({ action:'rules_commit', id:init.id });
+      if (!fin || !fin.ok){ printQ('rules_commit failed: '+(fin && fin.error||'')); return; }
+      printQ((STATE.lang==='ru')
+        ? ('Заявка сохранена. Ваш токен: '+(fin.verify_token||init.verify_token)+'. Вставьте его в описание плейлиста.')
+        : ('Application saved. Your token: '+(fin.verify_token||init.verify_token)+'. Paste it into your playlist description.'));
+      STATE.step=0; STATE.payload={};
     }
-  }
 
-  // Старт — только по кнопке, чтобы не было двойного "Choose language..."
-  btnStart && btnStart.addEventListener('click', ()=>{ box.innerHTML=''; STATE={step:0,payload:{},lang:''}; handle(''); });
-
-  btnSend && btnSend.addEventListener('click', async ()=>{
-    const txt = (input.value||'').trim();
-    if (!txt) return;
-
-    // Если пользователь вставил длинный текст — это правила → двухфазный поток
-    if (txt.length >= 500){
-      printA(txt);
-      input.value='';
-      await sendRulesFlow(txt);
-      return;
-    }
-    // Иначе обычный диалоговый шаг
-    await handle(txt);
-    input.value='';
+    btnStart.addEventListener('click', ()=>{ box.innerHTML=''; STATE={step:0,payload:{},lang:''}; handle(''); });
+    btnSend.addEventListener('click', async ()=>{
+      const txt = (input.value||'').trim(); if (!txt) return;
+      const lastQ = box.querySelector('.regbot-q:last-child');
+      if (lastQ && /RULES.*500|ПРАВИЛ.*500/i.test(lastQ.textContent||'')){ printA(txt); input.value=''; await sendRulesFlow(txt); return; }
+      await handle(txt); input.value='';
+    });
   });
 })();

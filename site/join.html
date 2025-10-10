@@ -13,26 +13,22 @@
     form{display:grid;gap:12px}
     label{font-weight:600}
     .row{display:grid;gap:12px;grid-template-columns:1fr 1fr}
-    input,textarea,select{padding:.75rem;border:1px solid #2b2f31;border-radius:10px;background:#111;color:#fff}
+    input,textarea{padding:.75rem;border:1px solid #2b2f31;border-radius:10px;background:#111;color:#fff}
     input::placeholder, textarea::placeholder{color:#9aa0a6}
     .note{color:#687076;font-size:.95rem}
-    .ok{color:#0a7a3d}
-    .err{color:#b00020}
-    .invalid{ border-color:#b00020 !important; outline: none; }
+    .ok{color:#0a7a3d}.err{color:#b00020}
     .token-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}
-    .rules-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start}
-    #rules_text{height:260px;resize:vertical;width:100%}
-    .count{font-size:.85rem;color:#9aa0a6;margin-top:6px}
+    #rules_text{height:260px;resize:vertical}
     .muted{color:#687076}
-    .inline-accent{color:#0a58ca}
-    .inline-accent:hover{text-decoration:underline}
+    .inline-accent{color:#0a58ca}.inline-accent:hover{text-decoration:underline}
     #regbot-box{border:1px solid #2b2f31;border-radius:12px;padding:12px;height:260px;overflow:auto;background:#0e0f10;margin-top:8px}
     .regbot-q,.regbot-a{white-space:pre-wrap;margin:.35rem 0}
     .regbot-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-top:8px}
     #regbot-input{padding:.75rem;border:1px solid #2b2f31;border-radius:10px;background:#111;color:#fff}
+    .hint{font-size:.9rem;color:#9aa0a6}
+    .field-err{font-size:.85rem;color:#b00020;margin-top:4px}
   </style>
-  <!-- Встроенная конфигурация (источник правды для FORM_ENDPOINT) -->
-  <script type="application/json" id="site-config">{"FORM_ENDPOINT":"https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec"}</script>
+  <script type="application/json" id="site-config">{ "FORM_ENDPOINT": "https://script.google.com/macros/s/AKfycbwEoubAzQRPUGryKHVwQ0L5aZq0hRgtTtEKg7gB_NhvXItfIaNQdogn4TBcDxXpNk8A/exec" }</script>
 </head>
 <body>
 <header class="hero">
@@ -42,28 +38,33 @@
 </header>
 
 <main class="join-wrap">
-  <p>Register your team, link your YouTube channel & season playlist. We’ll verify and post a welcome note in our official Telegram channel.</p>
+  <p>Register your team, link your YouTube channel & season playlist.</p>
 
-  <form id="join-form" data-join aria-live="polite">
+  <form id="join-form" data-join novalidate>
     <label>Team name
       <input name="team" required placeholder="Vortex Crew">
+      <div class="field-err" data-err-for="team"></div>
     </label>
 
     <div class="row">
       <label>Country/Region
         <input name="country" required placeholder="NL">
+        <div class="field-err" data-err-for="country"></div>
       </label>
       <label>Contact (email or Telegram @handle)
         <input name="contact" required placeholder="team@example.com or @team_handle">
+        <div class="field-err" data-err-for="contact"></div>
       </label>
     </div>
 
     <label>YouTube channel URL
       <input name="channel_url" type="url" required placeholder="https://youtube.com/@yourteam">
+      <div class="field-err" data-err-for="channel_url"></div>
     </label>
 
     <label>Season playlist URL
       <input name="playlist_url" type="url" required placeholder="https://www.youtube.com/playlist?list=PLxxxx">
+      <div class="field-err" data-err-for="playlist_url"></div>
     </label>
 
     <div class="token-row">
@@ -74,13 +75,11 @@
     </div>
     <p class="note">Paste the token into your playlist description after registration.</p>
 
-    <div class="rules-row">
-      <label style="margin:0">Rules (500–3000 characters)
-        <textarea id="rules_text" name="rules_text" minlength="500" maxlength="3000" placeholder="Paste a short version of your rules here (English or Russian)."></textarea>
-        <div class="count"><span id="rules_count">0</span>/3000</div>
-      </label>
-      <button class="btn" type="button" id="rulesSendBtn" title="Send rules (submits the form)">Send rules</button>
-    </div>
+    <label>Rules (500–3000 characters)
+      <textarea id="rules_text" name="rules_text" maxlength="3000" placeholder="Paste short version of your rules (EN/RU)."></textarea>
+      <div class="hint"><span id="rules_count">0</span>/3000</div>
+      <div class="field-err" data-err-for="rules_text"></div>
+    </label>
 
     <div class="consents" style="margin-top:12px">
       <label style="display:flex;gap:.6rem;align-items:center;margin:.25rem 0;">
@@ -93,16 +92,16 @@
       </label>
     </div>
 
-    <button class="btn" type="submit" id="submitBtn">Submit registration</button>
+    <button class="btn" type="submit">Submit registration</button>
     <p id="msg" class="note"></p>
     <div id="join-result" class="note" style="margin-top:12px"></div>
     <div id="verify-token" class="note" style="margin-top:8px;font-weight:600"></div>
   </form>
 
-  <!-- AI Registration Assistant (остаётся как есть) -->
+  <!-- Bot -->
   <section style="margin-top:28px">
     <h3>AI Registration Assistant</h3>
-    <p class="note">Assistant collects: team, country, contact, channel, playlist, and a rules text (500–3000 chars).</p>
+    <p class="note">Collects: team, country, contact, channel, season playlist, rules text (500–3000).</p>
     <div id="regbot-box" aria-live="polite"></div>
     <div class="regbot-row">
       <input id="regbot-input" placeholder="Answer the bot…"/>
@@ -112,10 +111,8 @@
   </section>
 </main>
 
-<script src="./app.join.js?v=manual-dup-ux"></script>
-<script src="./app.regbot.js?v=manual-dup-ux"></script>
-  <script src="./app.unique.js?v=uniq1760108022"></script>
-  <script src="./app.unique.js?v=uniq1760107314"></script>
+<script src="./app.join.js?v=final1"></script>
+<script src="./app.regbot.js?v=final1"></script>
 <script src="./public/config.json" type="application/json" id="site-config"></script>
 </body>
 </html>
